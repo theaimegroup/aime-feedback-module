@@ -15,7 +15,7 @@ npm install ./theaimegroup-model-feedback-0.1.0.tgz
 Peer dependencies (must already be in your project):
 
 ```bash
-npm install react react-dom lucide-react
+npm install react react-dom
 ```
 
 ---
