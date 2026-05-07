@@ -8,8 +8,8 @@ export interface UploadedImage {
 export async function uploadImage(
   dataUrl: string,
   projectId: string,
-  filesApiBaseUrl: string,
-  filesToken: string,
+  filesMsApiBaseUrl: string,
+  filesMsToken: string,
 ): Promise<UploadedImage | null> {
   try {
     const blob = await fetch(dataUrl).then((r) => r.blob())
@@ -20,9 +20,9 @@ export async function uploadImage(
     form.append('board_type', 'think_space')
     form.append('board_id', 'feedback')
 
-    const res = await fetch(`${filesApiBaseUrl}/files/model-feedback/image`, {
+    const res = await fetch(`${filesMsApiBaseUrl}/files/model-feedback/image`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${filesToken}` },
+      headers: { Authorization: `Bearer ${filesMsToken}` },
       body: form,
     })
 

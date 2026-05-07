@@ -9,10 +9,10 @@ import { uploadImage } from './upload'
 interface Props {
   projectId: string
   appId: string
-  token: string
-  apiBaseUrl: string
-  filesApiBaseUrl: string
-  filesToken: string
+  projectsMsToken: string
+  projectsMsBaseUrl: string
+  filesMsApiBaseUrl: string
+  filesMsToken: string
   /** Any valid CSS `background` value — solid colour, gradient, etc.
    *  Invalid values are silently ignored by the browser (FAB becomes transparent).
    *  Defaults to the built-in purple gradient. */
@@ -163,7 +163,7 @@ const FAB_DEFAULT_BG = 'linear-gradient(135deg, #4540E8, #7c3aed)'
 const FAB_DEFAULT_SHADOW = '0 4px 20px rgba(69,64,232,0.5)'
 const FAB_CUSTOM_SHADOW = '0 4px 20px rgba(0,0,0,0.4)'
 
-export function FeedbackWidget({ projectId, appId, token, apiBaseUrl, filesApiBaseUrl, filesToken, fabBackground }: Props) {
+export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground }: Props) {
   const [open, setOpen] = useState(false)
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [capturing, setCapturing] = useState(false)
@@ -182,7 +182,7 @@ export function FeedbackWidget({ projectId, appId, token, apiBaseUrl, filesApiBa
     return getDefaultFabPos()
   })
 
-  const isDisabled = projectId.startsWith('__') || token.startsWith('__') || filesToken.startsWith('__')
+  const isDisabled = projectId.startsWith('__') || projectsMsToken.startsWith('__') || filesMsToken.startsWith('__')
 
   const openWidget = useCallback(async () => {
     if (capturing || open || isDisabled) return
@@ -270,10 +270,10 @@ export function FeedbackWidget({ projectId, appId, token, apiBaseUrl, filesApiBa
       const dataUrl = canvasRef.current?.getAnnotatedImage()
       const images = []
       if (dataUrl) {
-        const uploaded = await uploadImage(dataUrl, projectId, filesApiBaseUrl, filesToken)
+        const uploaded = await uploadImage(dataUrl, projectId, filesMsApiBaseUrl, filesMsToken)
         if (uploaded) images.push(uploaded)
       }
-      await submitFeedback(apiBaseUrl, projectId, token, {
+      await submitFeedback(projectsMsBaseUrl, projectId, projectsMsToken, {
         title: form.title.trim(),
         description: form.description.trim(),
         type: form.type,

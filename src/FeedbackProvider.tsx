@@ -8,17 +8,17 @@ export function useFeedback() {
   return useContext(FeedbackContext)
 }
 
-export function FeedbackProvider({ projectId, appId, token, apiBaseUrl, filesApiBaseUrl, filesToken, fabBackground, children }: FeedbackProviderProps) {
+export function FeedbackProvider({ projectId, appId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, children }: FeedbackProviderProps) {
   return (
-    <FeedbackContext.Provider value={{ projectId, appId, token, apiBaseUrl }}>
+    <FeedbackContext.Provider value={{ projectId, appId, projectsMsToken, projectsMsBaseUrl }}>
       {children}
       <FeedbackWidget
         projectId={projectId}
         appId={appId}
-        token={token}
-        apiBaseUrl={apiBaseUrl}
-        filesApiBaseUrl={filesApiBaseUrl}
-        filesToken={filesToken}
+        projectsMsToken={projectsMsToken}
+        projectsMsBaseUrl={projectsMsBaseUrl}
+        filesMsApiBaseUrl={filesMsApiBaseUrl}
+        filesMsToken={filesMsToken}
         fabBackground={fabBackground}
       />
     </FeedbackContext.Provider>

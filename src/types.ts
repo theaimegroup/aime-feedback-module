@@ -22,10 +22,10 @@ export interface FeedbackPayload {
 export interface FeedbackProviderProps {
   projectId: string
   appId: string
-  token: string
-  apiBaseUrl: string
-  filesApiBaseUrl: string
-  filesToken: string
+  projectsMsToken: string
+  projectsMsBaseUrl: string
+  filesMsApiBaseUrl: string
+  filesMsToken: string
   fabBackground?: string
   children: ReactNode
 }
@@ -33,6 +33,6 @@ export interface FeedbackProviderProps {
 export interface FeedbackContextValue {
   projectId: string
   appId: string
-  token: string
-  apiBaseUrl: string
+  projectsMsToken: string
+  projectsMsBaseUrl: string
 }

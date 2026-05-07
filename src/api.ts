@@ -1,16 +1,16 @@
 import type { FeedbackPayload } from './types'
 
 export async function submitFeedback(
-  apiBaseUrl: string,
+  projectsMsBaseUrl: string,
   projectId: string,
-  token: string,
+  projectsMsToken: string,
   payload: FeedbackPayload,
 ): Promise<void> {
-  const res = await fetch(`${apiBaseUrl}/api/projects/${projectId}/model-feedback`, {
+  const res = await fetch(`${projectsMsBaseUrl}/api/projects/${projectId}/model-feedback`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${projectsMsToken}`,
     },
     body: JSON.stringify(payload),
   })

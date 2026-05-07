@@ -32,10 +32,10 @@ export default function App() {
     <FeedbackProvider
       projectId="your-project-id"
       appId="your-app-id"
-      token="your-feedback-token"
-      apiBaseUrl="https://api.example.com"
-      filesApiBaseUrl="https://files.example.com"
-      filesToken="your-files-token"
+      projectsMsToken="your-feedback-token"
+      projectsMsBaseUrl="https://api.example.com"
+      filesMsApiBaseUrl="https://files.example.com"
+      filesMsToken="your-files-token"
     >
       <YourApp />
     </FeedbackProvider>
@@ -55,10 +55,10 @@ That's it — a floating action button appears in the bottom-left corner.
 |---|---|---|---|
 | `projectId` | `string` | ✓ | AIME project identifier |
 | `appId` | `string` | ✓ | App identifier |
-| `token` | `string` | ✓ | Auth token for the feedback API |
-| `apiBaseUrl` | `string` | ✓ | Base URL of the feedback microservice |
-| `filesApiBaseUrl` | `string` | ✓ | Base URL of the file upload microservice |
-| `filesToken` | `string` | ✓ | Auth token for file uploads |
+| `projectsMsToken` | `string` | ✓ | Auth token for the feedback API |
+| `projectsMsBaseUrl` | `string` | ✓ | Base URL of the feedback microservice |
+| `filesMsApiBaseUrl` | `string` | ✓ | Base URL of the file upload microservice |
+| `filesMsToken` | `string` | ✓ | Auth token for file uploads |
 | `fabBackground` | `string` | — | Any valid CSS `background` value (solid colour, gradient). Defaults to the built-in purple gradient. |
 
 > **Placeholder detection** — if any of the required string props starts with `__`, the widget is disabled and renders nothing. Useful for environments where tokens haven't been configured yet.
@@ -132,10 +132,10 @@ import { FeedbackWidget } from '@theaimegroup/model-feedback'
 <FeedbackWidget
   projectId="..."
   appId="..."
-  token="..."
-  apiBaseUrl="..."
-  filesApiBaseUrl="..."
-  filesToken="..."
+  projectsMsToken="..."
+  projectsMsBaseUrl="..."
+  filesMsApiBaseUrl="..."
+  filesMsToken="..."
 />
 ```
 
