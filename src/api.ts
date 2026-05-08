@@ -15,7 +15,14 @@ export async function submitFeedback(
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
-    const msg = await res.text().catch(() => 'Unknown error')
+    let msg = 'Failed to submit feedback. Please try again.'
+    try {
+      const ct = res.headers.get('content-type') ?? ''
+      if (ct.includes('application/json')) {
+        const json = await res.json()
+        msg = json?.message || json?.error || msg
+      }
+    } catch {}
     throw new Error(msg)
   }
 }

@@ -24,8 +24,14 @@ import {
 
 export type DrawTool = 'select' | 'text' | 'rect' | 'ellipse' | 'arrow' | 'note'
 
+export interface NoteComment {
+  text: string
+  metadata?: { note_color?: string }
+}
+
 export interface AnnotationCanvasHandle {
-  getAnnotatedImage(): string
+  getAnnotatedImage(): string | null
+  getNoteComments(): NoteComment[]
 }
 
 interface Props {
@@ -104,13 +110,15 @@ function lockMidHandles(obj: fabric.Object) {
 
 const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
   type: 'NoteBubble',
-  noteText:      'Add note...',
-  tailX:         0,
-  tailY:         70,
-  noteBgColor:   '#1e1e2e',
-  noteTextColor: '#ffffff',
-  noteFontSize:  13,
-  strokeWidth:   0,
+  noteText:       'Add note...',
+  tailX:          0,
+  tailY:          70,
+  noteBgColor:    '#fde68a',
+  noteTextColor:  '#1a1a1a',
+  noteFontSize:   13,
+  noteFontWeight: 'normal',
+  noteFontStyle:  'normal',
+  strokeWidth:    0,
 
   initialize(options: Record<string, unknown> = {}) {
     this.callSuper('initialize', {
@@ -118,12 +126,14 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
       height: 80,
       ...options,
     })
-    this.noteText      = (options.noteText      as string)  ?? 'Add note...'
-    this.tailX         = (options.tailX         as number)  ?? 0
-    this.tailY         = (options.tailY         as number)  ?? 70
-    this.noteBgColor   = (options.noteBgColor   as string)  ?? '#1e1e2e'
-    this.noteTextColor = (options.noteTextColor as string)  ?? '#ffffff'
-    this.noteFontSize  = (options.noteFontSize  as number)  ?? 13
+    this.noteText       = (options.noteText       as string)  ?? 'Add note...'
+    this.tailX          = (options.tailX          as number)  ?? 0
+    this.tailY          = (options.tailY          as number)  ?? 70
+    this.noteBgColor    = (options.noteBgColor    as string)  ?? '#fde68a'
+    this.noteTextColor  = (options.noteTextColor  as string)  ?? '#1a1a1a'
+    this.noteFontSize   = (options.noteFontSize   as number)  ?? 13
+    this.noteFontWeight = (options.noteFontWeight as string)  ?? 'normal'
+    this.noteFontStyle  = (options.noteFontStyle  as string)  ?? 'normal'
     this.objectCaching = false  // tail renders outside width×height bounds
     this._setupControls()
   },
@@ -158,7 +168,7 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
         // finalMatrix encodes rotation+translation+viewport but NOT scale.
         // Scale lives in dim, so we pre-multiply tailX/tailY by scaleX/scaleY.
         return fabric.util.transformPoint(
-          { x: nb.tailX * (nb.scaleX || 1), y: nb.tailY * (nb.scaleY || 1) },
+          new fabric.Point(nb.tailX * (nb.scaleX || 1), nb.tailY * (nb.scaleY || 1)),
           finalMatrix,
         )
       },
@@ -172,9 +182,24 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
         const pointer = canvas.getPointer(eventData)
         const matrix  = nb.calcTransformMatrix()
         const inv     = fabric.util.invertTransform(matrix)
-        const local   = fabric.util.transformPoint({ x: pointer.x, y: pointer.y }, inv)
-        nb.tailX  = local.x
-        nb.tailY  = local.y
+        const local   = fabric.util.transformPoint(new fabric.Point(pointer.x, pointer.y), inv)
+
+        // Clamp tail outside the body rect so it can't be dragged inward.
+        const hw = ((nb.width  || 180) / 2)
+        const hh = ((nb.height ||  80) / 2)
+        const MARGIN = 20
+        let tx = local.x, ty = local.y
+        const ax = Math.abs(tx), ay = Math.abs(ty)
+        const exitsTB = ax === 0 || (ay > 0 && ay / ax >= hh / hw)
+        if (exitsTB) {
+          const minDist = hh + MARGIN
+          if (Math.abs(ty) < minDist) ty = ty >= 0 ? minDist : -minDist
+        } else {
+          const minDist = hw + MARGIN
+          if (Math.abs(tx) < minDist) tx = tx >= 0 ? minDist : -minDist
+        }
+        nb.tailX  = tx
+        nb.tailY  = ty
         nb.dirty  = true
         canvas.requestRenderAll()
         return true
@@ -202,7 +227,7 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
     if (!this.isEditing) {
       ctx.save()
       ctx.fillStyle    = this.noteTextColor as string
-      ctx.font         = `${fs}px sans-serif`
+      ctx.font         = `${this.noteFontStyle} ${this.noteFontWeight} ${fs}px sans-serif`
       ctx.textBaseline = 'top'
       const maxW  = W - 20
       const lines = wrapText(ctx, this.noteText as string, maxW)
@@ -220,12 +245,14 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
     return (fabric.util as any).object.extend(
       this.callSuper('toObject', extra),
       {
-        noteText:      this.noteText,
-        tailX:         this.tailX,
-        tailY:         this.tailY,
-        noteBgColor:   this.noteBgColor,
-        noteTextColor: this.noteTextColor,
-        noteFontSize:  this.noteFontSize,
+        noteText:       this.noteText,
+        tailX:          this.tailX,
+        tailY:          this.tailY,
+        noteBgColor:    this.noteBgColor,
+        noteTextColor:  this.noteTextColor,
+        noteFontSize:   this.noteFontSize,
+        noteFontWeight: this.noteFontWeight,
+        noteFontStyle:  this.noteFontStyle,
       },
     )
   },
@@ -238,7 +265,7 @@ NoteBubbleClass.fromObject = (obj: Record<string, unknown>, cb: (o: unknown) => 
 
 // ── toolbar definitions ───────────────────────────────────────────────────────
 
-const TOOLS: { id: DrawTool; label: string; Icon: React.ComponentType<{ size?: number }> }[] = [
+const TOOLS: { id: DrawTool; label: string; Icon: React.ComponentType<{ size?: number | string }> }[] = [
   { id: 'select',  label: 'Select (V)',    Icon: MousePointer2 },
 
   { id: 'text',    label: 'Text (T)',      Icon: Type },
@@ -287,8 +314,10 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
 
     const [tool,          setTool]          = useState<DrawTool>('select')
     const [color,         setColor]         = useState('#ef4444')
-    const [noteBgColor,   setNoteBgColor]   = useState('#1e1e2e')
-    const [noteTextColor, setNoteTextColor] = useState('#ffffff')
+    const [noteBgColor,   setNoteBgColor]   = useState('#fde68a')
+    const [noteTextColor, setNoteTextColor] = useState('#1a1a1a')
+    const [noteBold,      setNoteBold]      = useState(false)
+    const [noteItalic,    setNoteItalic]    = useState(false)
     const [canUndo,       setCanUndo]       = useState(false)
     const [canRedo,       setCanRedo]       = useState(false)
     const [selectedIsNote, setSelectedIsNote] = useState(false)
@@ -301,8 +330,10 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
 
     const toolRef         = useRef<DrawTool>('select')
     const colorRef        = useRef('#ef4444')
-    const noteBgRef       = useRef('#1e1e2e')
-    const noteTextRef     = useRef('#ffffff')
+    const noteBgRef       = useRef('#fde68a')
+    const noteTextRef     = useRef('#1a1a1a')
+    const noteBoldRef     = useRef(false)
+    const noteItalicRef   = useRef(false)
     const isDrawing       = useRef(false)
 
     const startPt         = useRef({ x: 0, y: 0 })
@@ -314,10 +345,12 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
     const historyIndexRef = useRef(0)
     const pauseHistory    = useRef(false)
 
-    useEffect(() => { toolRef.current     = tool         }, [tool])
-    useEffect(() => { colorRef.current    = color        }, [color])
-    useEffect(() => { noteBgRef.current   = noteBgColor  }, [noteBgColor])
-    useEffect(() => { noteTextRef.current = noteTextColor }, [noteTextColor])
+    useEffect(() => { toolRef.current       = tool          }, [tool])
+    useEffect(() => { colorRef.current      = color         }, [color])
+    useEffect(() => { noteBgRef.current     = noteBgColor   }, [noteBgColor])
+    useEffect(() => { noteTextRef.current   = noteTextColor }, [noteTextColor])
+    useEffect(() => { noteBoldRef.current   = noteBold      }, [noteBold])
+    useEffect(() => { noteItalicRef.current = noteItalic    }, [noteItalic])
 
     // ── history helpers ──────────────────────────────────────────────────────
 
@@ -397,6 +430,18 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       setCanRedo(historyIndexRef.current < historyRef.current.length - 1)
     }
 
+    // ── note property update helper ─────────────────────────────────────────
+
+    const applyNoteStyle = (props: Record<string, unknown>) => {
+      const canvas = fabricRef.current
+      const obj    = canvas?.getActiveObject() as any
+      if (!canvas || obj?.type !== 'NoteBubble') return
+      Object.assign(obj, props)
+      obj.dirty = true
+      canvas.renderAll()
+      saveSnapshot(canvas)
+    }
+
     // ── note text editing overlay ────────────────────────────────────────────
 
     const openNoteEdit = (nb: InstanceType<typeof NoteBubbleClass>, canvas: fabric.Canvas) => {
@@ -414,11 +459,11 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       ;(nb as any).setCoords()
       canvas.renderAll()
 
-      // getBoundingRect(false, true) returns the axis-aligned box already in
-      // canvas-element pixel space (viewport transform applied) — no need to
-      // multiply by zoom or add vpt translation.
-      const br              = (nb as any).getBoundingRect(false, true)
-      const zoom            = canvas.getZoom()
+      const zoom  = canvas.getZoom()
+      // getBoundingRect with useCache=false, absolute=true gives viewport-space coords.
+      // The tail renders outside width×height (objectCaching=false), so the bounding
+      // rect only covers the bubble body — no tail inflation.
+      const br    = (nb as any).getBoundingRect(false, true)
       const effectiveFontSize = ((nb as any).noteFontSize || 13) * ((nb as any).scaleX || 1) * zoom
 
       setEditingNote({
@@ -440,6 +485,17 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
         const dataUrl = canvas.toDataURL({ format: 'png', quality: 1 })
         canvas.setViewportTransform(vpt)
         return dataUrl
+      },
+      getNoteComments: () => {
+        const canvas = fabricRef.current
+        if (!canvas) return []
+        return canvas.getObjects()
+          .filter(o => (o as any).type === 'NoteBubble')
+          .map(o => ({
+            text: (o as any).noteText as string,
+            metadata: { note_color: (o as any).noteBgColor as string },
+          }))
+          .filter(c => c.text && c.text !== 'Add note...')
       },
     }))
 
@@ -500,7 +556,16 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       // track selection for UI state
       const onSel = () => {
         const obj = canvas.getActiveObject() as any
-        setSelectedIsNote(obj?.type === 'NoteBubble')
+        const isNote = obj?.type === 'NoteBubble'
+        setSelectedIsNote(isNote)
+        if (isNote) {
+          const bold   = obj.noteFontWeight === 'bold'
+          const italic = obj.noteFontStyle  === 'italic'
+          setNoteBold(bold);   noteBoldRef.current   = bold
+          setNoteItalic(italic); noteItalicRef.current = italic
+          setNoteBgColor(obj.noteBgColor    || '#fde68a')
+          setNoteTextColor(obj.noteTextColor || '#1a1a1a')
+        }
       }
       canvas.on('selection:created', onSel)
       canvas.on('selection:updated', onSel)
@@ -573,13 +638,15 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
 
         if (t === 'note') {
           const nb = new NoteBubbleClass({
-            left:          p.x,
-            top:           p.y,
-            noteText:      'Add note...',
-            noteBgColor:   noteBgRef.current,
-            noteTextColor: noteTextRef.current,
-            tailX:         0,
-            tailY:         70,
+            left:           p.x,
+            top:            p.y,
+            noteText:       'Add note...',
+            noteBgColor:    noteBgRef.current,
+            noteTextColor:  noteTextRef.current,
+            noteFontWeight: noteBoldRef.current   ? 'bold'   : 'normal',
+            noteFontStyle:  noteItalicRef.current ? 'italic' : 'normal',
+            tailX:          0,
+            tailY:          70,
           })
           canvas.add(nb)
           canvas.setActiveObject(nb)
@@ -759,80 +826,69 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
 
           <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
 
-          {/* primary color */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Color</span>
-            <input type="color" value={color}
-              onChange={e => {
-                setColor(e.target.value)
-                colorRef.current = e.target.value
-                applyColorToSelection(fabricRef.current)
-              }}
-              title="Stroke / text color"
-              style={{ ...btn(), padding: 3, cursor: 'pointer', width: 32, height: 32 }}
-            />
-          </div>
-
-          {/* note-specific colors */}
-          {(tool === 'note' || selectedIsNote) && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Bg</span>
-                <input type="color" value={noteBgColor}
-                  onChange={e => {
-                    setNoteBgColor(e.target.value)
-                    noteBgRef.current = e.target.value
-                    const active = fabricRef.current?.getActiveObject() as any
-                    if (active?.type === 'NoteBubble') {
-                      active.noteBgColor = e.target.value
-                      active.dirty = true
-                      fabricRef.current?.renderAll()
-                    }
-                  }}
-                  title="Note background color"
-                  style={{ ...btn(), padding: 3, cursor: 'pointer', width: 32, height: 32 }}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Text</span>
-                <input type="color" value={noteTextColor}
-                  onChange={e => {
-                    setNoteTextColor(e.target.value)
-                    noteTextRef.current = e.target.value
-                    const active = fabricRef.current?.getActiveObject() as any
-                    if (active?.type === 'NoteBubble') {
-                      active.noteTextColor = e.target.value
-                      active.dirty = true
-                      fabricRef.current?.renderAll()
-                    }
-                  }}
-                  title="Note text color"
-                  style={{ ...btn(), padding: 3, cursor: 'pointer', width: 32, height: 32 }}
-                />
-              </div>
-            </>
-          )}
-
-          <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-
           {/* image upload */}
           <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={addImageFromFile} />
           <button onClick={() => fileInputRef.current?.click()} title="Add image" style={btn()}>
             <ImagePlus size={14} />
           </button>
 
+          {/* note controls — visible when note tool active or note selected */}
+          {(tool === 'note' || selectedIsNote) && (
+            <>
+              <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+              {/* bold */}
+              <button
+                title="Bold"
+                onClick={() => {
+                  const next = !noteBold
+                  setNoteBold(next); noteBoldRef.current = next
+                  applyNoteStyle({ noteFontWeight: next ? 'bold' : 'normal' })
+                }}
+                style={{ ...btn(noteBold), fontWeight: 'bold', fontSize: 13, fontFamily: 'serif' }}
+              >B</button>
+
+              {/* italic */}
+              <button
+                title="Italic"
+                onClick={() => {
+                  const next = !noteItalic
+                  setNoteItalic(next); noteItalicRef.current = next
+                  applyNoteStyle({ noteFontStyle: next ? 'italic' : 'normal' })
+                }}
+                style={{ ...btn(noteItalic), fontStyle: 'italic', fontSize: 13, fontFamily: 'serif' }}
+              >I</button>
+
+              <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+              <label title="Note background color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                <span>Bg</span>
+                <input type="color" value={noteBgColor} onChange={e => {
+                  setNoteBgColor(e.target.value)
+                  applyNoteStyle({ noteBgColor: e.target.value })
+                }} style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+              </label>
+
+              <label title="Note text color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                <span>Text</span>
+                <input type="color" value={noteTextColor} onChange={e => {
+                  setNoteTextColor(e.target.value)
+                  applyNoteStyle({ noteTextColor: e.target.value })
+                }} style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+              </label>
+            </>
+          )}
+
           {/* right-side actions */}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
 
-            <button onClick={undo}          title="Undo (Ctrl+Z)"       style={btn()} disabled={!canUndo}><Undo2    size={14} /></button>
-            <button onClick={redo}          title="Redo (Ctrl+Y)"       style={btn()} disabled={!canRedo}><Redo2    size={14} /></button>
             <button onClick={deleteSelected} title="Delete selected (Del)" style={btn()}><X          size={14} /></button>
             <button onClick={clear}         title="Clear all"           style={{ ...btn(), borderColor: 'rgba(239,68,68,0.4)' }}><Trash2 size={14} /></button>
           </div>
         </div>
 
         {/* canvas container */}
-        <div ref={containerRef} style={{ width: '100%', aspectRatio: '16/9', flexShrink: 0, overflow: 'hidden', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
+        <div ref={containerRef} style={{ width: '100%', aspectRatio: '16/9', flexShrink: 0, overflow: 'hidden', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', position: 'relative', marginTop: 10 }}>
           <canvas ref={canvasElRef} />
 
           {/* note text editing overlay */}
@@ -864,14 +920,17 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 position:    'absolute',
                 left:        editingNote.left,
                 top:         editingNote.top,
-                width:       editingNote.width - 20,
-                minHeight:   editingNote.height - 20,
+                width:       editingNote.width,
+                height:      editingNote.height,
+                boxSizing:   'border-box',
                 background:  'transparent',
-                border:      'none',
-                outline:     '2px solid #4540E8',
-                borderRadius: 6,
-                color:       (editingNote.obj.noteTextColor as string) || '#fff',
+                border:      '2px solid #4540E8',
+                borderRadius: 10,
+                outline:     'none',
+                color:       (editingNote.obj.noteTextColor as string) || '#1a1a1a',
                 fontSize:    `${editingNote.fontSize}px`,
+                fontWeight:  (editingNote.obj.noteFontWeight as string) || 'normal',
+                fontStyle:   (editingNote.obj.noteFontStyle  as string) || 'normal',
                 fontFamily:  'sans-serif',
                 padding:     '8px 10px',
                 resize:      'none',

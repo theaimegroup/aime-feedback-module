@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnnotationCanvas, type AnnotationCanvasHandle } from './AnnotationCanvas'
 import { submitFeedback } from './api'
 import { captureScreenshot } from './screenshot'
-import type { FeedbackPriority, FeedbackType } from './types'
+import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackType } from './types'
 import { uploadImage } from './upload'
 
 interface Props {
@@ -17,6 +17,8 @@ interface Props {
    *  Invalid values are silently ignored by the browser (FAB becomes transparent).
    *  Defaults to the built-in purple gradient. */
   fabBackground?: string
+  /** Name shown as the author on annotation comments. Defaults to "Anonymous". */
+  userName?: string
 }
 
 interface FormState {
@@ -26,6 +28,7 @@ interface FormState {
   priority: FeedbackPriority
   tags: string[]
 }
+
 
 const INITIAL_FORM: FormState = {
   title: '',
@@ -146,7 +149,7 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); add() }
+          if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); add() }
         }}
         onBlur={add}
         placeholder={tags.length === 0 ? 'Add tags…' : ''}
@@ -163,11 +166,12 @@ const FAB_DEFAULT_BG = 'linear-gradient(135deg, #4540E8, #7c3aed)'
 const FAB_DEFAULT_SHADOW = '0 4px 20px rgba(69,64,232,0.5)'
 const FAB_CUSTOM_SHADOW = '0 4px 20px rgba(0,0,0,0.4)'
 
-export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground }: Props) {
+export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, userName }: Props) {
   const [open, setOpen] = useState(false)
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [capturing, setCapturing] = useState(false)
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
+  const [capturedMeta, setCapturedMeta] = useState<FeedbackMeta | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -198,13 +202,21 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
     setScreenshot(img)
     setOpen(true)
     setForm(INITIAL_FORM)
+    const { browser, os } = parseBrowserOS(navigator.userAgent)
+    setCapturedMeta({
+      url: window.location.href,
+      page_title: document.title || undefined,
+      browser,
+      os,
+      screen: `${window.screen.width}×${window.screen.height}`,
+    })
     setError(null)
     setSuccess(false)
   }, [capturing, open, isDisabled])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.shiftKey && e.key === 'F' && !open) openWidget()
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F' && !open) openWidget()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -213,9 +225,14 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
   useEffect(() => {
     const onResize = () => {
       setFabPos((prev) => {
-        const maxX = window.innerWidth - FAB_SIZE - FAB_MARGIN
-        const maxY = window.innerHeight - FAB_SIZE - FAB_MARGIN
-        return { x: Math.max(FAB_MARGIN, Math.min(prev.x, maxX)), y: Math.max(FAB_MARGIN, Math.min(prev.y, maxY)) }
+        const snapped = snapToCorner(prev)
+        if (fabDivRef.current) {
+          fabDivRef.current.style.transition = 'left 0.2s ease-out, top 0.2s ease-out'
+          fabDivRef.current.style.left = `${snapped.x}px`
+          fabDivRef.current.style.top  = `${snapped.y}px`
+        }
+        try { localStorage.setItem(FAB_LS_KEY, JSON.stringify(snapped)) } catch {}
+        return snapped
       })
     }
     window.addEventListener('resize', onResize)
@@ -263,7 +280,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
   }
 
   const handleSubmit = async () => {
-    if (!form.title.trim() || !form.type || submitting) return
+    if (!form.title.trim() || !form.description.trim() || !form.type || submitting) return
     setSubmitting(true)
     setError(null)
     try {
@@ -273,6 +290,16 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
         const uploaded = await uploadImage(dataUrl, projectId, filesMsApiBaseUrl, filesMsToken)
         if (uploaded) images.push(uploaded)
       }
+
+      const noteComments = canvasRef.current?.getNoteComments() ?? []
+      const authorName = userName || 'Anonymous'
+      const comments: FeedbackComment[] = noteComments.map((n) => ({
+        text: n.text,
+        author_name: authorName,
+        source: 'annotation',
+        metadata: n.metadata,
+      }))
+
       await submitFeedback(projectsMsBaseUrl, projectId, projectsMsToken, {
         title: form.title.trim(),
         description: form.description.trim(),
@@ -280,6 +307,8 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
         priority: form.priority,
         tags: form.tags,
         images,
+        comments,
+        metadata: capturedMeta ?? undefined,
       })
       setSuccess(true)
       setTimeout(close, 2000)
@@ -293,8 +322,8 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
   if (isDisabled) return null
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+    width: '100%', background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
     padding: '10px 12px', color: 'white', fontSize: 14, outline: 'none',
     boxSizing: 'border-box',
   }
@@ -303,7 +332,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
     fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 6, display: 'block',
   }
 
-  const canSubmit = !!form.title.trim() && !!form.type && !submitting
+  const canSubmit = !!form.title.trim() && !!form.description.trim() && !!form.type && !submitting
 
   return (
     <>
@@ -315,7 +344,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
       >
         <button
           disabled={capturing}
-          title="Submit feedback (Shift+F)"
+          title="Submit feedback (Ctrl+Shift+F)"
           onPointerDown={onFabPointerDown}
           onPointerMove={onFabPointerMove}
           onPointerUp={onFabPointerUp}
@@ -355,7 +384,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
           <div
             style={{
               width: '96vw', height: '93vh',
-              background: '#0d0d18',
+              background: '#1A243E',
               border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: 16,
               display: 'flex', flexDirection: 'column',
@@ -430,7 +459,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
 
                 {/* Description */}
                 <div>
-                  <label style={labelStyle}>Description</label>
+                  <label style={labelStyle}>Description <span style={{ color: '#ef4444' }}>*</span></label>
                   <textarea
                     value={form.description}
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
@@ -486,7 +515,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
                       style={{ ...inputStyle, cursor: 'pointer' }}
                     >
                       {PRIORITIES.map((p) => (
-                        <option key={p} value={p} style={{ background: '#0d0d18' }}>
+                        <option key={p} value={p} style={{ background: '#1A243E' }}>
                           {p.charAt(0).toUpperCase() + p.slice(1)}
                         </option>
                       ))}
@@ -552,6 +581,29 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
       )}
     </>
   )
+}
+
+function parseBrowserOS(ua: string): { browser: string; os: string } {
+  const browser =
+    /Edg\/(\d+)/.exec(ua)     ? `Edge ${/Edg\/(\d+)/.exec(ua)![1]}` :
+    /OPR\/(\d+)/.exec(ua)     ? `Opera ${/OPR\/(\d+)/.exec(ua)![1]}` :
+    /Chrome\/(\d+)/.exec(ua)  ? `Chrome ${/Chrome\/(\d+)/.exec(ua)![1]}` :
+    /Firefox\/(\d+)/.exec(ua) ? `Firefox ${/Firefox\/(\d+)/.exec(ua)![1]}` :
+    /Version\/(\d+).*Safari/.exec(ua) ? `Safari ${/Version\/(\d+)/.exec(ua)![1]}` :
+    'Unknown'
+
+  const os =
+    /Windows NT 10/.test(ua)  ? 'Windows 11/10' :
+    /Windows NT 6\.3/.test(ua)? 'Windows 8.1' :
+    /Windows NT 6\.1/.test(ua)? 'Windows 7' :
+    /Windows/.test(ua)        ? 'Windows' :
+    /Mac OS X (\d+[._]\d+)/.exec(ua) ? `macOS ${/Mac OS X (\d+[._]\d+)/.exec(ua)![1].replace('_', '.')}` :
+    /iPhone|iPad/.test(ua)    ? 'iOS' :
+    /Android (\d+)/.exec(ua)  ? `Android ${/Android (\d+)/.exec(ua)![1]}` :
+    /Linux/.test(ua)          ? 'Linux' :
+    'Unknown'
+
+  return { browser, os }
 }
 
 function hexToRgb(hex: string): string {
