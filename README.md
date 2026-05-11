@@ -164,10 +164,10 @@ The annotated screenshot is uploaded automatically on submit.
 | Field | Notes |
 |---|---|
 | **Title** | Required. Max 200 characters. |
-| **Description** | Optional free text. |
+| **Description** | Required. Free text. |
 | **Type** | `bug` · `feature_request` · `improvement` · `question` |
 | **Priority** | `low` · `medium` · `high` · `critical` (default: `medium`) |
-| **Tags** | Freeform. Commit with `Enter` or `,`. |
+| **Tags** | Freeform. Commit a tag with `Tab`. |
 
 ---
 
