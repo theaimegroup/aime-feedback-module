@@ -1,4 +1,4 @@
-# @theaimegroup/model-feedback
+# @theaimegroup/aime-feedback-module
 
 In-app feedback widget for AIME model previews. Captures a screenshot, lets users annotate it, then submits structured feedback to the AIME platform.
 
@@ -6,10 +6,31 @@ In-app feedback widget for AIME model previews. Captures a screenshot, lets user
 
 ## Installation
 
-The package is distributed as a tarball. Install it locally:
+This package is published to **GitHub Packages**, not the public npm registry. You need a `.npmrc` to install it.
+
+### 1. Create a GitHub Personal Access Token
+
+Generate a [classic PAT](https://github.com/settings/tokens) with **`read:packages`** scope (add `write:packages` if you'll be publishing).
+
+### 2. Add `.npmrc` to your project root
+
+```ini
+@theaimegroup:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+Then export the token in your shell (or set it in CI):
 
 ```bash
-npm install ./theaimegroup-model-feedback-0.1.0.tgz
+export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxx
+```
+
+> Add `.npmrc` to `.gitignore` if you inline the token literal instead of using `${GITHUB_TOKEN}`.
+
+### 3. Install
+
+```bash
+npm install @theaimegroup/aime-feedback-module
 ```
 
 Peer dependencies (must already be in your project):
@@ -25,17 +46,16 @@ npm install react react-dom
 Wrap your app with `FeedbackProvider`. It mounts the FAB and wires up context.
 
 ```tsx
-import { FeedbackProvider } from '@theaimegroup/model-feedback'
+import { FeedbackProvider } from '@theaimegroup/aime-feedback-module'
 
 export default function App() {
   return (
     <FeedbackProvider
-      projectId="your-project-id"
-      appId="your-app-id"
-      projectsMsToken="your-feedback-token"
-      projectsMsBaseUrl="https://api.example.com"
-      filesMsApiBaseUrl="https://files.example.com"
-      filesMsToken="your-files-token"
+      projectId="your-aime-project-id"
+      projectsMsToken={process.env.PROJECTS_MS_TOKEN!}
+      projectsMsBaseUrl={process.env.PROJECTS_MS_URL!}
+      filesMsApiBaseUrl={process.env.FILES_MS_URL!}
+      filesMsToken={process.env.FILES_MS_TOKEN!}
     >
       <YourApp />
     </FeedbackProvider>
@@ -43,25 +63,33 @@ export default function App() {
 }
 ```
 
-That's it — a floating action button appears in the bottom-left corner.
+A floating action button appears in the bottom-left corner. Drag it to any corner — position persists in `localStorage`.
 
 ---
 
 ## Props
 
-### `FeedbackProvider` / `FeedbackWidget`
+Both `FeedbackProvider` and `FeedbackWidget` accept the same props (provider also accepts `children`).
 
 | Prop | Type | Required | Description |
 |---|---|---|---|
-| `projectId` | `string` | ✓ | AIME project identifier |
-| `appId` | `string` | ✓ | App identifier |
-| `projectsMsToken` | `string` | ✓ | Auth token for the feedback API |
-| `projectsMsBaseUrl` | `string` | ✓ | Base URL of the feedback microservice |
-| `filesMsApiBaseUrl` | `string` | ✓ | Base URL of the file upload microservice |
-| `filesMsToken` | `string` | ✓ | Auth token for file uploads |
-| `fabBackground` | `string` | — | Any valid CSS `background` value (solid colour, gradient). Defaults to the built-in purple gradient. |
+| `projectId` | `string` | ✓ | AIME project identifier the feedback belongs to |
+| `projectsMsToken` | `string` | ✓ | Bearer token for the feedback API |
+| `projectsMsBaseUrl` | `string` | ✓ | Base URL of the projects microservice |
+| `filesMsApiBaseUrl` | `string` | ✓ | Base URL of the files microservice |
+| `filesMsToken` | `string` | ✓ | Bearer token for image uploads |
+| `fabBackground` | `string` | — | Any CSS `background` value (color, gradient). Defaults to built-in purple gradient. |
+| `showFab` | `boolean` | — | Render the built-in floating action button. Set to `false` to drive the widget entirely via `useFeedback()`. Defaults to `true`. |
+| `userName` | `string` | — | Display name attached to comments on annotated screenshots |
 
-> **Placeholder detection** — if any of the required string props starts with `__`, the widget is disabled and renders nothing. Useful for environments where tokens haven't been configured yet.
+> **Placeholder detection** — if any required string prop starts with `__`, the widget is disabled and renders nothing. Useful for environments where tokens aren't configured yet.
+
+---
+
+## Opening the widget
+
+- **Click the FAB** — bottom-left by default; drag to any corner to reposition.
+- **Keyboard** — `Ctrl + Shift + F` (Windows/Linux) or `Cmd + Shift + F` (macOS).
 
 ---
 
@@ -71,30 +99,49 @@ That's it — a floating action button appears in the bottom-left corner.
 
 ```tsx
 // Solid colour
-<FeedbackProvider fabBackground="#e11d48" .../>
+<FeedbackProvider fabBackground="#e11d48" {...rest} />
 
 // Gradient
-<FeedbackProvider fabBackground="linear-gradient(135deg, #f97316, #eab308)" .../>
-
-// Default (omit the prop)
-<FeedbackProvider .../>
+<FeedbackProvider fabBackground="linear-gradient(135deg, #4540E8, #7c47d8)" {...rest} />
 ```
 
-> Invalid CSS values fail silently — the FAB becomes transparent rather than throwing. Pass a valid value.
+> Invalid CSS values fail silently — the FAB becomes transparent. Pass a valid value.
 
 ---
 
-## Opening the widget
+## Controlling the widget programmatically
 
-**Click the FAB** — bottom-left by default. Drag it to any corner; position is saved to `localStorage`.
+Anywhere inside `<FeedbackProvider>`, call `useFeedback()` to open or close the widget from your own UI (e.g. a custom button in your topbar, or after a user completes a flow). Pair with `showFab={false}` on the Provider if you don't want the built-in FAB at all.
 
-**Keyboard shortcut** — `Shift + F` opens the widget from anywhere on the page.
+```tsx
+import { useFeedback } from '@theaimegroup/aime-feedback-module'
+
+function ReportBugButton() {
+  const { open, isOpen, isCapturing } = useFeedback()
+  return (
+    <button onClick={open} disabled={isOpen || isCapturing}>
+      {isCapturing ? 'Capturing…' : 'Report a bug'}
+    </button>
+  )
+}
+```
+
+`useFeedback()` returns:
+
+| Key | Type | Description |
+|---|---|---|
+| `open` | `() => void` | Triggers screenshot capture and opens the modal |
+| `close` | `() => void` | Closes the modal |
+| `isOpen` | `boolean` | Whether the modal is currently open |
+| `isCapturing` | `boolean` | Whether a screenshot capture is in progress |
+
+> Calling `useFeedback()` outside a `<FeedbackProvider>` throws.
 
 ---
 
 ## Annotation canvas
 
-When the widget opens it captures a screenshot of the current viewport and loads it into an annotation canvas. Available tools:
+When the widget opens, it captures a screenshot of the current viewport and loads it into a Fabric.js annotation canvas.
 
 | Tool | Description |
 |---|---|
@@ -103,8 +150,10 @@ When the widget opens it captures a screenshot of the current viewport and loads
 | Rectangle | Draw a rectangle |
 | Ellipse | Draw an ellipse |
 | Arrow | Draw a directional arrow |
-| Sticky note | Add a colour-coded note |
+| Sticky note | Add a coloured note with a draggable tail and bold/italic formatting |
 | Image | Upload an image from disk |
+
+**Keyboard shortcuts:** `Ctrl/Cmd + Z` undo · `Ctrl/Cmd + Y` redo · `Del` delete selected.
 
 The annotated screenshot is uploaded automatically on submit.
 
@@ -118,26 +167,7 @@ The annotated screenshot is uploaded automatically on submit.
 | **Description** | Optional free text. |
 | **Type** | `bug` · `feature_request` · `improvement` · `question` |
 | **Priority** | `low` · `medium` · `high` · `critical` (default: `medium`) |
-| **Tags** | Freeform. Commit a tag with `Enter` or `Space`. |
-
----
-
-## Using `FeedbackWidget` directly
-
-If you don't want the context provider, use `FeedbackWidget` on its own — it takes the same props minus `children`.
-
-```tsx
-import { FeedbackWidget } from '@theaimegroup/model-feedback'
-
-<FeedbackWidget
-  projectId="..."
-  appId="..."
-  projectsMsToken="..."
-  projectsMsBaseUrl="..."
-  filesMsApiBaseUrl="..."
-  filesMsToken="..."
-/>
-```
+| **Tags** | Freeform. Commit with `Enter` or `,`. |
 
 ---
 
@@ -148,3 +178,18 @@ npm run build      # outputs to dist/
 npm run dev        # watch mode
 npm run pack:dist  # build + pack tarball
 ```
+
+---
+
+## Publishing
+
+Push the repo to GitHub, then:
+
+```bash
+npm version patch    # 0.1.0 → 0.1.1
+npm run build
+npm publish          # publishes to GitHub Packages (uses publishConfig from package.json)
+git push --tags
+```
+
+The PAT in your `.npmrc` needs `write:packages` scope.

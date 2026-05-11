@@ -1,26 +1,53 @@
-import React, { createContext, useContext } from 'react'
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { FeedbackWidget } from './FeedbackWidget'
-import type { FeedbackContextValue, FeedbackProviderProps } from './types'
+import type { FeedbackContextValue, FeedbackProviderProps, FeedbackWidgetHandle } from './types'
 
 const FeedbackContext = createContext<FeedbackContextValue | null>(null)
 
-export function useFeedback() {
-  return useContext(FeedbackContext)
+export function useFeedback(): FeedbackContextValue {
+  const ctx = useContext(FeedbackContext)
+  if (!ctx) throw new Error('useFeedback must be used within a <FeedbackProvider>')
+  return ctx
 }
 
-export function FeedbackProvider({ projectId, appId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, userName, children }: FeedbackProviderProps) {
+export function FeedbackProvider({
+  projectId,
+  projectsMsToken,
+  projectsMsBaseUrl,
+  filesMsApiBaseUrl,
+  filesMsToken,
+  fabBackground,
+  showFab,
+  userName,
+  children,
+}: FeedbackProviderProps) {
+  const widgetRef = useRef<FeedbackWidgetHandle>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [isCapturing, setIsCapturing] = useState(false)
+
+  const open  = useCallback(() => widgetRef.current?.open(),  [])
+  const close = useCallback(() => widgetRef.current?.close(), [])
+
+  const value = useMemo<FeedbackContextValue>(
+    () => ({ open, close, isOpen, isCapturing }),
+    [open, close, isOpen, isCapturing],
+  )
+
   return (
-    <FeedbackContext.Provider value={{ projectId, appId, projectsMsToken, projectsMsBaseUrl }}>
+    <FeedbackContext.Provider value={value}>
       {children}
       <FeedbackWidget
+        ref={widgetRef}
         projectId={projectId}
-        appId={appId}
         projectsMsToken={projectsMsToken}
         projectsMsBaseUrl={projectsMsBaseUrl}
         filesMsApiBaseUrl={filesMsApiBaseUrl}
         filesMsToken={filesMsToken}
         fabBackground={fabBackground}
+        showFab={showFab}
         userName={userName}
+        onOpenChange={setIsOpen}
+        onCapturingChange={setIsCapturing}
       />
     </FeedbackContext.Provider>
   )

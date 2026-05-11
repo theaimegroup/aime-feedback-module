@@ -1,14 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnnotationCanvas, type AnnotationCanvasHandle } from './AnnotationCanvas'
 import { submitFeedback } from './api'
 import { captureScreenshot } from './screenshot'
-import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackType } from './types'
+import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackType, FeedbackWidgetHandle } from './types'
 import { uploadImage } from './upload'
 
 interface Props {
   projectId: string
-  appId: string
   projectsMsToken: string
   projectsMsBaseUrl: string
   filesMsApiBaseUrl: string
@@ -17,8 +16,14 @@ interface Props {
    *  Invalid values are silently ignored by the browser (FAB becomes transparent).
    *  Defaults to the built-in purple gradient. */
   fabBackground?: string
+  /** Render the built-in floating action button. Defaults to `true`. */
+  showFab?: boolean
   /** Name shown as the author on annotation comments. Defaults to "Anonymous". */
   userName?: string
+  /** Called whenever the modal opens or closes. */
+  onOpenChange?: (open: boolean) => void
+  /** Called whenever a screenshot capture starts or ends. */
+  onCapturingChange?: (capturing: boolean) => void
 }
 
 interface FormState {
@@ -166,7 +171,10 @@ const FAB_DEFAULT_BG = 'linear-gradient(135deg, #4540E8, #7c3aed)'
 const FAB_DEFAULT_SHADOW = '0 4px 20px rgba(69,64,232,0.5)'
 const FAB_CUSTOM_SHADOW = '0 4px 20px rgba(0,0,0,0.4)'
 
-export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, userName }: Props) {
+export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function FeedbackWidget(
+  { projectId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, showFab = true, userName, onOpenChange, onCapturingChange },
+  ref,
+) {
   const [open, setOpen] = useState(false)
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [capturing, setCapturing] = useState(false)
@@ -196,7 +204,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
     try {
       img = await captureScreenshot()
     } catch (err) {
-      console.error('[model-feedback] screenshot failed:', err)
+      console.error('[aime-feedback-module] screenshot failed:', err)
     }
     setCapturing(false)
     setScreenshot(img)
@@ -274,10 +282,15 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
     if (!moved) openWidget()
   }
 
-  const close = () => {
+  const close = useCallback(() => {
     setOpen(false)
     setScreenshot(null)
-  }
+  }, [])
+
+  useEffect(() => { onOpenChange?.(open) }, [open, onOpenChange])
+  useEffect(() => { onCapturingChange?.(capturing) }, [capturing, onCapturingChange])
+
+  useImperativeHandle(ref, () => ({ open: openWidget, close }), [openWidget, close])
 
   const handleSubmit = async () => {
     if (!form.title.trim() || !form.description.trim() || !form.type || submitting) return
@@ -337,6 +350,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
   return (
     <>
       <style>{`@keyframes aime-spin { to { transform: rotate(360deg) } }`}</style>
+      {showFab && (
       <div
         id="__aime-fb__"
         ref={fabDivRef}
@@ -372,6 +386,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
           )}
         </button>
       </div>
+      )}
 
       {open && createPortal(
         <div
@@ -581,7 +596,7 @@ export function FeedbackWidget({ projectId, appId, projectsMsToken, projectsMsBa
       )}
     </>
   )
-}
+})
 
 function parseBrowserOS(ua: string): { browser: string; os: string } {
   const browser =
