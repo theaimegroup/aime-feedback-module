@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-12
+
+### Changed (BREAKING)
+- Widget no longer hard-codes the `/api/projects` and `/files/` path prefixes when calling the microservices. The base URL props now flow through verbatim:
+  - **Before:** `projectsMsBaseUrl` (e.g. `https://example.com`) + widget appended `/api/projects/:id/model-feedback`
+  - **After:** `projectsMsBaseUrl` must already include the full prefix (e.g. `https://example.com/api/projects`); widget only appends `/:id/model-feedback`
+  - **Before:** `filesMsApiBaseUrl` (e.g. `https://example.com/api`) + widget appended `/files/model-feedback/image`
+  - **After:** `filesMsApiBaseUrl` must already include the file route prefix (e.g. `https://example.com/api/files`); widget only appends `/model-feedback/image`
+- Lets consumers route the widget through a gateway / BFF proxy whose path structure differs from the direct microservice URLs.
+
+### Migration
+Update your env values to include the prefixes the widget previously injected:
+
+```diff
+- NEXT_PUBLIC_FEEDBACK_PROJECTS_MS_URL=https://projects-api.aime.works
++ NEXT_PUBLIC_FEEDBACK_PROJECTS_MS_URL=https://projects-api.aime.works/api/projects
+
+- NEXT_PUBLIC_FEEDBACK_FILES_MS_URL=https://files-api.aime.works/api
++ NEXT_PUBLIC_FEEDBACK_FILES_MS_URL=https://files-api.aime.works/api/files
+```
+
 ## [0.1.9] - 2026-05-12
 
 ### Changed
