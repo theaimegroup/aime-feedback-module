@@ -1,4 +1,4 @@
-# @theaimegroup/aime-feedback-module
+# @aime-platform/aime-feedback-module
 
 In-app feedback widget for AIME model previews. Captures a screenshot, lets users annotate it, then submits structured feedback to the AIME platform.
 
@@ -6,22 +6,10 @@ In-app feedback widget for AIME model previews. Captures a screenshot, lets user
 
 ## Installation
 
-Published as a **public** package on GitHub Packages. No auth, no `.npmrc` required — just install.
-
-### 1. Point your scope at GitHub Packages (one-time per project)
-
-Add to `.npmrc` at your project root:
-
-```ini
-@theaimegroup:registry=https://npm.pkg.github.com
-```
-
-That's it — no token needed for installs.
-
-### 2. Install
+Public package on **npmjs.org** — no auth, no `.npmrc`, just install.
 
 ```bash
-npm install @theaimegroup/aime-feedback-module
+npm install @aime-platform/aime-feedback-module
 ```
 
 Peer dependencies (must already be in your project):
@@ -37,7 +25,7 @@ npm install react react-dom
 Wrap your app with `FeedbackProvider`. It mounts the FAB and wires up context.
 
 ```tsx
-import { FeedbackProvider } from '@theaimegroup/aime-feedback-module'
+import { FeedbackProvider } from '@aime-platform/aime-feedback-module'
 
 export default function App() {
   return (
@@ -105,7 +93,7 @@ Both `FeedbackProvider` and `FeedbackWidget` accept the same props (provider als
 Anywhere inside `<FeedbackProvider>`, call `useFeedback()` to open or close the widget from your own UI (e.g. a custom button in your topbar, or after a user completes a flow). Pair with `showFab={false}` on the Provider if you don't want the built-in FAB at all.
 
 ```tsx
-import { useFeedback } from '@theaimegroup/aime-feedback-module'
+import { useFeedback } from '@aime-platform/aime-feedback-module'
 
 function ReportBugButton() {
   const { open, isOpen, isCapturing } = useFeedback()
@@ -175,17 +163,11 @@ npm run pack:dist  # build + pack tarball
 ## Publishing
 
 ```bash
+npm login            # login to npmjs.com (maintainers only)
 npm version patch    # bumps version + creates a git tag
 npm run build
-npm publish          # publishes to GitHub Packages (uses publishConfig from package.json)
+npm publish          # publishes to public npm (publishConfig.access = public)
 git push --follow-tags
 ```
 
-**Auth for publishing only:** maintainers need `GITHUB_TOKEN` in their environment (PAT with `write:packages` scope). Set it via a local `.npmrc` like:
-
-```ini
-@theaimegroup:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-(Gitignore this file; consumers don't need it — installs are public.)
+First publish of a new scope may need `npm publish --access public` explicitly.

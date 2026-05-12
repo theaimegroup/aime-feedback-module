@@ -1,13 +1,13 @@
 {
-  "name": "@theaimegroup/aime-feedback-module",
-  "version": "0.1.1",
+  "name": "@aime-platform/aime-feedback-module",
+  "version": "0.1.2",
   "description": "Feedback widget for AIME model previews",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/theaimegroup/aime-feedback-module.git"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "main": "dist/index.js",
   "module": "dist/index.mjs",

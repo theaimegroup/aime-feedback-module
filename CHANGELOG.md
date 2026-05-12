@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-12
+
+### Changed
+- **Moved to public npmjs.org registry** as `@aime-platform/aime-feedback-module` (was `@theaimegroup/aime-feedback-module` on GitHub Packages). WebContainer's npm proxy can't reach GitHub Packages reliably, so this is necessary for in-browser previews of generated apps.
+- Consumers no longer need an `.npmrc` — npm defaults to npmjs.org.
+
+### Migration
+- Replace dep `@theaimegroup/aime-feedback-module` → `@aime-platform/aime-feedback-module`.
+- Remove the `@theaimegroup:registry=...` line from any `.npmrc`.
+
 ## [0.1.1] - 2026-05-11
 
 ### Changed
-- **Package is now public.** Consumers no longer need a GitHub PAT to install — just point the `@theaimegroup` scope at GitHub Packages in `.npmrc`. Publishing still requires `write:packages` scope.
-- README install instructions simplified (no token, no env var setup).
+- (Intermediate version on GitHub Packages — superseded by 0.1.2 on npmjs.org.) Public visibility flip; README simplified.
 
 ## [0.1.0] - 2026-05-08
 
@@ -24,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tail-clamping on sticky notes — tail cannot be dragged inside the bubble body, preserving the chat-bubble shape.
 
 ### Changed
-- **Package renamed** from `@theaimegroup/model-feedback` to `@theaimegroup/aime-feedback-module`.
+- **Package renamed** from `@theaimegroup/model-feedback` to `@aime-platform/aime-feedback-module`.
 - **Published to GitHub Packages** instead of distributed as a tarball.
 - `FeedbackWidget` is no longer exported — `FeedbackProvider` is the only public entry point.
 - `useFeedback()` now **throws** when used outside a `<FeedbackProvider>` (previously returned `null`).
