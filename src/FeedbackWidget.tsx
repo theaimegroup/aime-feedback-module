@@ -5,6 +5,7 @@ import { submitFeedback } from './api'
 import { captureScreenshot } from './screenshot'
 import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackType, FeedbackWidgetHandle } from './types'
 import { uploadImage } from './upload'
+import { AIME_LOGO_DATA_URL } from './logo'
 
 interface Props {
   projectId: string
@@ -452,36 +453,38 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     rel="noopener noreferrer"
                     style={{
                       fontSize: 13,
-                      color: 'rgba(255,255,255,0.7)',
+                      color: 'rgba(255,255,255,0.85)',
                       textDecoration: 'none',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 8,
-                      padding: '6px 10px',
-                      borderRadius: 6,
+                      padding: '7px 12px',
+                      borderRadius: 8,
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.12)',
                       transition: 'all 0.15s',
                       fontWeight: 500,
+                      cursor: 'pointer',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'rgba(255,255,255,0.95)'
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                      e.currentTarget.style.color = 'white'
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
-                      e.currentTarget.style.background = 'transparent'
+                      e.currentTarget.style.color = 'rgba(255,255,255,0.85)'
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'
                     }}
                   >
-                    <span
+                    <img
+                      src={AIME_LOGO_DATA_URL}
+                      alt=""
                       aria-hidden
-                      style={{
-                        width: 22, height: 22, borderRadius: 5,
-                        background: 'linear-gradient(135deg, #4540E8, #7c47d8)',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        color: 'white', fontSize: 12, fontWeight: 700, lineHeight: 1,
-                        fontFamily: 'system-ui, -apple-system, sans-serif',
-                        flexShrink: 0,
-                      }}
-                    >A</span>
+                      width={22}
+                      height={22}
+                      style={{ borderRadius: 5, flexShrink: 0, display: 'block' }}
+                    />
                     AIME Teams
                     {(() => {
                       const tag = deriveEnvTag(teamsUrl)
@@ -505,6 +508,14 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                         </span>
                       )
                     })()}
+                    <svg
+                      width="12" height="12" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor" strokeWidth="2.5"
+                      strokeLinecap="round" strokeLinejoin="round"
+                      style={{ opacity: 0.6, marginLeft: 2 }}
+                    >
+                      <path d="M7 17 17 7M7 7h10v10" />
+                    </svg>
                   </a>
                 )}
                 <button

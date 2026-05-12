@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-05-12
+
+### Changed
+- Header link now uses the actual AIME logo (embedded as a small data URL — no external asset dependency).
+- Restyled as a proper button — background, border, hover state, external-link arrow indicator.
+
 ## [0.1.6] - 2026-05-12
 
 ### Changed
