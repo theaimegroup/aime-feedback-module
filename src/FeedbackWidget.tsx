@@ -600,7 +600,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                 {/* Type */}
                 <div>
                   <label style={labelStyle}>What type of feedback is this? <span style={{ color: '#ef4444' }}>*</span></label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     {FEEDBACK_TYPES.map((t) => {
                       const selected = form.type === t.id
                       return (
@@ -655,29 +655,31 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   </div>
                 </div>
 
-                {error && (
-                  <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#fca5a5', fontSize: 13 }}>
-                    {error}
-                  </div>
-                )}
-
-                {success && (
-                  <div style={{ padding: '10px 14px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: '#86efac', fontSize: 13 }}>
-                    Feedback submitted successfully. Thank you!
-                  </div>
-                )}
               </div>
             </div>
 
             {/* Footer */}
             <div
               style={{
-                display: 'flex', justifyContent: 'flex-end', gap: 10,
+                display: 'flex', justifyContent: 'space-between', gap: 10,
                 padding: '0 24px', height: 68, flexShrink: 0,
                 borderTop: '1px solid rgba(255,255,255,0.07)',
                 alignItems: 'center',
               }}
             >
+              <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+                {error && (
+                  <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#fca5a5', fontSize: 13, display: 'inline-block', maxWidth: '100%' }}>
+                    {error}
+                  </div>
+                )}
+                {success && (
+                  <div style={{ padding: '8px 12px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: '#86efac', fontSize: 13, display: 'inline-block', maxWidth: '100%' }}>
+                    Feedback submitted successfully. Thank you!
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={close}
                 style={{
@@ -702,6 +704,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               >
                 {submitting ? 'Submitting…' : 'Submit Feedback'}
               </button>
+              </div>
             </div>
           </div>
         </div>,
