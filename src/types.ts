@@ -45,7 +45,7 @@ export interface FeedbackProviderProps {
   fabBackground?: string
   /** Render the built-in floating action button. Set to `false` if you'll trigger the widget from a custom UI via `useFeedback()`. Defaults to `true`. */
   showFab?: boolean
-  /** Optional URL of the AIME teams app (e.g. `https://teams.aime.works`). When provided, the modal header renders a "View in Teams" link that deep-links to the project's feedback inbox. */
+  /** Optional URL of the AIME teams app (e.g. `https://teams.aime.works`). When provided, the modal header renders an "AIME Teams" link that deep-links to the project's feedback inbox. An env badge (DEV/BETA) is auto-derived from this URL. */
   teamsUrl?: string
   /** Name shown as the comment author when the user submits feedback with annotations */
   userName?: string

@@ -18,7 +18,7 @@ interface Props {
   fabBackground?: string
   /** Render the built-in floating action button. Defaults to `true`. */
   showFab?: boolean
-  /** Optional teams app URL — when provided, renders a "View in Teams" link in the modal header pointing to the project's feedback inbox. */
+  /** Optional teams app URL — when provided, renders an "AIME Teams" link in the modal header. An env badge (DEV/BETA) is auto-derived from this URL. */
   teamsUrl?: string
   /** Name shown as the author on annotation comments. Defaults to "Anonymous". */
   userName?: string
@@ -98,6 +98,26 @@ const TYPE_COLORS: Record<FeedbackType, string> = {
 }
 
 const PRIORITIES: FeedbackPriority[] = ['low', 'medium', 'high', 'critical']
+
+/**
+ * Derive an env tag from the teamsUrl so users know which environment the
+ * feedback will be submitted to. Returns label + color tone for the badge.
+ *   - localhost / private IPs → DEV (orange)
+ *   - hostname includes beta/staging/dev → BETA (orange)
+ *   - anything else                       → GO (green, production)
+ */
+function deriveEnvTag(teamsUrl: string | undefined): { label: string; tone: 'warn' | 'prod' } | null {
+  if (!teamsUrl) return null
+  let host = ''
+  try { host = new URL(teamsUrl).hostname.toLowerCase() } catch { return { label: 'GO', tone: 'prod' } }
+  if (host === 'localhost' || host.startsWith('127.') || host.startsWith('192.168.') || host.startsWith('100.')) {
+    return { label: 'DEV', tone: 'warn' }
+  }
+  if (host.includes('beta') || host.includes('staging') || host.includes('dev.')) {
+    return { label: 'BETA', tone: 'warn' }
+  }
+  return { label: 'GO', tone: 'prod' }
+}
 
 const FAB_SIZE = 52
 const FAB_MARGIN = 24
@@ -431,29 +451,60 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      fontSize: 12,
-                      color: 'rgba(255,255,255,0.55)',
+                      fontSize: 13,
+                      color: 'rgba(255,255,255,0.7)',
                       textDecoration: 'none',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 4,
+                      gap: 8,
                       padding: '6px 10px',
                       borderRadius: 6,
                       transition: 'all 0.15s',
+                      fontWeight: 500,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'rgba(255,255,255,0.85)'
+                      e.currentTarget.style.color = 'rgba(255,255,255,0.95)'
                       e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = 'rgba(255,255,255,0.55)'
+                      e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
                       e.currentTarget.style.background = 'transparent'
                     }}
                   >
-                    View in Teams
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M7 17 17 7M7 7h10v10" />
-                    </svg>
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 22, height: 22, borderRadius: 5,
+                        background: 'linear-gradient(135deg, #4540E8, #7c47d8)',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'white', fontSize: 12, fontWeight: 700, lineHeight: 1,
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        flexShrink: 0,
+                      }}
+                    >A</span>
+                    AIME Teams
+                    {(() => {
+                      const tag = deriveEnvTag(teamsUrl)
+                      if (!tag) return null
+                      const warn = tag.tone === 'warn'
+                      return (
+                        <span
+                          style={{
+                            background: warn ? 'rgba(249,115,22,0.15)' : 'rgba(34,197,94,0.15)',
+                            color:      warn ? '#fb923c'              : '#4ade80',
+                            border: `1px solid ${warn ? 'rgba(249,115,22,0.3)' : 'rgba(34,197,94,0.3)'}`,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: '0.05em',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {tag.label}
+                        </span>
+                      )
+                    })()}
                   </a>
                 )}
                 <button

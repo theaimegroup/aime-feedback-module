@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-05-12
+
+### Changed
+- Modal header link redesigned: "View in Teams" → **[A] AIME Teams [BADGE]** with a small AIME logo mark and an environment badge auto-derived from the `teamsUrl` hostname.
+- Badge tells users which environment the feedback is going to:
+  - `localhost` / `127.x` / `192.168.x` / `100.x` → **DEV** (orange)
+  - hostname contains `beta` / `staging` / `dev.` → **BETA** (orange)
+  - everything else → **GO** (green, production)
+
 ## [0.1.5] - 2026-05-12
 
 ### Fixed
