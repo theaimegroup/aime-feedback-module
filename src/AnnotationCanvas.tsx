@@ -707,7 +707,12 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       const resizeObserver = new ResizeObserver((entries) => {
         const entry = entries[0]
         if (!entry) return
-        const width = entry.contentRect.width
+        // Defensive: skip near-zero widths and changes < 1px to prevent
+        // micro-resize loops with flex parents that lack `min-width: 0`.
+        const width = Math.max(0, Math.floor(entry.contentRect.width))
+        if (width < 50) return
+        const currentWidth = canvas.getWidth()
+        if (Math.abs(width - currentWidth) < 1) return
         const height = Math.round(width * 9 / 16)
         canvas.setDimensions({ width, height })
         canvas.renderAll()

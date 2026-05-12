@@ -475,7 +475,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               {/* Left: annotation */}
               <div
                 style={{
-                  flex: '0 0 66.666%', padding: 16,
+                  flex: '0 0 66.666%', minWidth: 0, padding: 16,
                   borderRight: '1px solid rgba(255,255,255,0.07)',
                   display: 'flex', flexDirection: 'column',
                 }}
@@ -491,7 +491,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               {/* Right: form */}
               <div
                 style={{
-                  flex: 1, overflowY: 'auto', padding: '16px 24px',
+                  flex: 1, minWidth: 0, overflowY: 'auto', padding: '16px 24px',
                   display: 'flex', flexDirection: 'column', gap: 18,
                 }}
               >
