@@ -18,6 +18,8 @@ interface Props {
   fabBackground?: string
   /** Render the built-in floating action button. Defaults to `true`. */
   showFab?: boolean
+  /** Optional teams app URL — when provided, renders a "View in Teams" link in the modal header pointing to the project's feedback inbox. */
+  teamsUrl?: string
   /** Name shown as the author on annotation comments. Defaults to "Anonymous". */
   userName?: string
   /** Called whenever the modal opens or closes. */
@@ -172,7 +174,7 @@ const FAB_DEFAULT_SHADOW = '0 4px 20px rgba(69,64,232,0.5)'
 const FAB_CUSTOM_SHADOW = '0 4px 20px rgba(0,0,0,0.4)'
 
 export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function FeedbackWidget(
-  { projectId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, showFab = true, userName, onOpenChange, onCapturingChange },
+  { projectId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, showFab = true, teamsUrl, userName, onOpenChange, onCapturingChange },
   ref,
 ) {
   const [open, setOpen] = useState(false)
@@ -422,8 +424,40 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   Share your thoughts, report issues, or request new features.
                 </div>
               </div>
-              <button
-                onClick={close}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {teamsUrl && (
+                  <a
+                    href={`${teamsUrl.replace(/\/+$/, '')}/projects/${projectId}/feedback`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: 12,
+                      color: 'rgba(255,255,255,0.55)',
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'rgba(255,255,255,0.85)'
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'rgba(255,255,255,0.55)'
+                      e.currentTarget.style.background = 'transparent'
+                    }}
+                  >
+                    View in Teams
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M7 17 17 7M7 7h10v10" />
+                    </svg>
+                  </a>
+                )}
+                <button
+                  onClick={close}
                 style={{
                   background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: 8, width: 34, height: 34, cursor: 'pointer',
@@ -431,8 +465,9 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >
-                ✕
-              </button>
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Body */}

@@ -18,6 +18,7 @@ export function FeedbackProvider({
   filesMsToken,
   fabBackground,
   showFab,
+  teamsUrl,
   userName,
   children,
 }: FeedbackProviderProps) {
@@ -45,6 +46,7 @@ export function FeedbackProvider({
         filesMsToken={filesMsToken}
         fabBackground={fabBackground}
         showFab={showFab}
+        teamsUrl={teamsUrl}
         userName={userName}
         onOpenChange={setIsOpen}
         onCapturingChange={setIsCapturing}

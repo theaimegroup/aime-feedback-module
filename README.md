@@ -59,6 +59,7 @@ Both `FeedbackProvider` and `FeedbackWidget` accept the same props (provider als
 | `filesMsToken` | `string` | ✓ | Bearer token for image uploads |
 | `fabBackground` | `string` | — | Any CSS `background` value (color, gradient). Defaults to built-in purple gradient. |
 | `showFab` | `boolean` | — | Render the built-in floating action button. Set to `false` to drive the widget entirely via `useFeedback()`. Defaults to `true`. |
+| `teamsUrl` | `string` | — | URL of your AIME teams app (e.g. `https://teams.aime.works`). When set, the modal header renders a "View in Teams" link that deep-links to the project's feedback inbox. |
 | `userName` | `string` | — | Display name attached to comments on annotated screenshots |
 
 > **Placeholder detection** — if any required string prop starts with `__`, the widget is disabled and renders nothing. Useful for environments where tokens aren't configured yet.

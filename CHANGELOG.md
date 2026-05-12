@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-12
+
+### Fixed
+- `FeedbackProvider` was silently dropping the `teamsUrl` prop instead of forwarding it to `FeedbackWidget`. The "View in Teams" link added in 0.1.3 never rendered. Now wired correctly.
+
+## [0.1.3] - 2026-05-12
+
+### Added
+- New `teamsUrl` prop on `FeedbackProvider`. When set, the modal header renders a "View in Teams" link deep-linking to `${teamsUrl}/projects/${projectId}/feedback`. Hidden when omitted. **Note: 0.1.3 has a prop-forwarding bug — upgrade directly to 0.1.4.**
+
 ## [0.1.2] - 2026-05-12
 
 ### Changed
