@@ -34,6 +34,7 @@ export interface FeedbackPayload {
   images: FeedbackImage[]
   comments: FeedbackComment[]
   metadata?: FeedbackMeta
+  submitted_by_name?: string
 }
 
 export interface FeedbackProviderProps {

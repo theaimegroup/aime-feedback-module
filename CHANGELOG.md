@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-05-12
+
+### Added
+- Optional "Your name" field at the top of the feedback form. Defaults to `Aime` (placeholder). Whatever the user types — or the default — is sent as `submitted_by_name` on the feedback payload AND used as the author name on annotation comments (no more "Anonymous"). The previously-existing `userName` prop is still respected as a fallback when the field is left blank.
+
 ## [0.1.7] - 2026-05-12
 
 ### Changed

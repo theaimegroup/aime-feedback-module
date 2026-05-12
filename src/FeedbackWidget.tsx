@@ -35,8 +35,10 @@ interface FormState {
   type: FeedbackType | null
   priority: FeedbackPriority
   tags: string[]
+  submittedByName: string
 }
 
+const DEFAULT_SUBMITTER_NAME = 'Aime'
 
 const INITIAL_FORM: FormState = {
   title: '',
@@ -44,6 +46,7 @@ const INITIAL_FORM: FormState = {
   type: null,
   priority: 'medium',
   tags: [],
+  submittedByName: '',
 }
 
 const FEEDBACK_TYPES: { id: FeedbackType; label: string; desc: string; icon: React.ReactNode }[] = [
@@ -328,7 +331,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
       }
 
       const noteComments = canvasRef.current?.getNoteComments() ?? []
-      const authorName = userName || 'Anonymous'
+      const authorName = form.submittedByName.trim() || userName || DEFAULT_SUBMITTER_NAME
       const comments: FeedbackComment[] = noteComments.map((n) => ({
         text: n.text,
         author_name: authorName,
@@ -345,6 +348,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
         images,
         comments,
         metadata: capturedMeta ?? undefined,
+        submitted_by_name: authorName,
       })
       setSuccess(true)
       setTimeout(close, 2000)
@@ -557,6 +561,18 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   display: 'flex', flexDirection: 'column', gap: 18,
                 }}
               >
+                {/* Submitter name */}
+                <div>
+                  <label style={labelStyle}>Your name <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>(optional)</span></label>
+                  <input
+                    value={form.submittedByName}
+                    onChange={(e) => setForm((f) => ({ ...f, submittedByName: e.target.value }))}
+                    placeholder={DEFAULT_SUBMITTER_NAME}
+                    maxLength={80}
+                    style={inputStyle}
+                  />
+                </div>
+
                 {/* Title */}
                 <div>
                   <label style={labelStyle}>Title <span style={{ color: '#ef4444' }}>*</span></label>
