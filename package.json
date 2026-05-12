@@ -1,6 +1,6 @@
 {
   "name": "@theaimegroup/aime-feedback-module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Feedback widget for AIME model previews",
   "repository": {
     "type": "git",

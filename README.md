@@ -6,28 +6,19 @@ In-app feedback widget for AIME model previews. Captures a screenshot, lets user
 
 ## Installation
 
-This package is published to **GitHub Packages**, not the public npm registry. You need a `.npmrc` to install it.
+Published as a **public** package on GitHub Packages. No auth, no `.npmrc` required — just install.
 
-### 1. Create a GitHub Personal Access Token
+### 1. Point your scope at GitHub Packages (one-time per project)
 
-Generate a [classic PAT](https://github.com/settings/tokens) with **`read:packages`** scope (add `write:packages` if you'll be publishing).
-
-### 2. Add `.npmrc` to your project root
+Add to `.npmrc` at your project root:
 
 ```ini
 @theaimegroup:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-Then export the token in your shell (or set it in CI):
+That's it — no token needed for installs.
 
-```bash
-export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxx
-```
-
-> Add `.npmrc` to `.gitignore` if you inline the token literal instead of using `${GITHUB_TOKEN}`.
-
-### 3. Install
+### 2. Install
 
 ```bash
 npm install @theaimegroup/aime-feedback-module
@@ -183,13 +174,18 @@ npm run pack:dist  # build + pack tarball
 
 ## Publishing
 
-Push the repo to GitHub, then:
-
 ```bash
-npm version patch    # 0.1.0 → 0.1.1
+npm version patch    # bumps version + creates a git tag
 npm run build
 npm publish          # publishes to GitHub Packages (uses publishConfig from package.json)
-git push --tags
+git push --follow-tags
 ```
 
-The PAT in your `.npmrc` needs `write:packages` scope.
+**Auth for publishing only:** maintainers need `GITHUB_TOKEN` in their environment (PAT with `write:packages` scope). Set it via a local `.npmrc` like:
+
+```ini
+@theaimegroup:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+(Gitignore this file; consumers don't need it — installs are public.)
