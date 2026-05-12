@@ -20,7 +20,7 @@ export async function uploadImage(
     form.append('board_type', 'think_space')
     form.append('board_id', 'feedback')
 
-    const res = await fetch(`${filesMsApiBaseUrl}/files/model-feedback/image`, {
+    const res = await fetch(`${filesMsApiBaseUrl}/model-feedback/image`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${filesMsToken}` },
       body: form,

@@ -6,7 +6,7 @@ export async function submitFeedback(
   projectsMsToken: string,
   payload: FeedbackPayload,
 ): Promise<void> {
-  const res = await fetch(`${projectsMsBaseUrl}/api/projects/${projectId}/model-feedback`, {
+  const res = await fetch(`${projectsMsBaseUrl}/projects/${projectId}/model-feedback`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
