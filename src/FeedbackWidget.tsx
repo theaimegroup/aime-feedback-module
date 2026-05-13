@@ -215,7 +215,10 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
     try {
       const saved = localStorage.getItem(FAB_LS_KEY)
-      if (saved) return JSON.parse(saved)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) return parsed
+      }
     } catch {}
     return getDefaultFabPos()
   })
@@ -255,6 +258,20 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [open, openWidget])
+
+  // First-paint reconciliation: the useState initializer read whatever was in
+  // localStorage (or the default) without knowing the current viewport. If the
+  // cached coords are off-screen for today's viewport (smaller monitor, rotated
+  // device, different window size), the FAB would render invisible. Snap to
+  // the nearest corner of the CURRENT viewport as soon as we mount.
+  useEffect(() => {
+    setFabPos((prev) => {
+      const snapped = snapToCorner(prev)
+      if (snapped.x === prev.x && snapped.y === prev.y) return prev // no-op
+      try { localStorage.setItem(FAB_LS_KEY, JSON.stringify(snapped)) } catch {}
+      return snapped
+    })
+  }, []) // run once on mount
 
   useEffect(() => {
     const onResize = () => {

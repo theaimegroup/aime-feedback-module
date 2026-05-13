@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-13
+
+### Fixed
+- FAB could render off-screen or in a non-corner position on first load when the cached coordinates in `localStorage` were from a viewport with different dimensions (e.g., user resized between sessions, switched monitors, or rotated a device). On mount, the widget now re-snaps the FAB to the nearest corner of the current viewport before paint.
+- Hardened `localStorage` reader to reject malformed payloads (non-numeric `x`/`y` falls back to the default position).
+
 ## [0.2.0] - 2026-05-12
 
 ### Changed (BREAKING)
