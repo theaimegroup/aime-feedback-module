@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnnotationCanvas, type AnnotationCanvasHandle } from './AnnotationCanvas'
 import { submitFeedback } from './api'
 import { captureScreenshot } from './screenshot'
-import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackType, FeedbackWidgetHandle } from './types'
+import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackType, FeedbackWidgetHandle, NotifyUser } from './types'
 import { uploadImage } from './upload'
 import { AIME_LOGO_DATA_URL } from './logo'
 
@@ -23,6 +23,8 @@ interface Props {
   teamsUrl?: string
   /** Name shown as the author on annotation comments. Defaults to "Anonymous". */
   userName?: string
+  /** Project members available for targeted notifications. When provided, a multi-select appears in the form (max 5). */
+  notifyUsers?: NotifyUser[]
   /** Called whenever the modal opens or closes. */
   onOpenChange?: (open: boolean) => void
   /** Called whenever a screenshot capture starts or ends. */
@@ -36,6 +38,9 @@ interface FormState {
   priority: FeedbackPriority
   tags: string[]
   submittedByName: string
+  notifyOnResolve: boolean
+  submitterEmail: string
+  selectedNotifyUsers: NotifyUser[]
 }
 
 const DEFAULT_SUBMITTER_NAME = 'Aime'
@@ -47,6 +52,109 @@ const INITIAL_FORM: FormState = {
   priority: 'medium',
   tags: [],
   submittedByName: '',
+  notifyOnResolve: false,
+  submitterEmail: '',
+  selectedNotifyUsers: [],
+}
+
+const MAX_NOTIFY_USERS = 5
+
+function UserMultiSelect({ users, selected, onChange }: {
+  users: NotifyUser[]
+  selected: NotifyUser[]
+  onChange: (u: NotifyUser[]) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const available = users.filter(u =>
+    !selected.find(s => s.id === u.id) &&
+    u.name.toLowerCase().includes(query.toLowerCase())
+  )
+
+  const add = (user: NotifyUser) => {
+    if (selected.length >= MAX_NOTIFY_USERS) return
+    onChange([...selected, user])
+    setQuery('')
+    setOpen(false)
+  }
+
+  const remove = (id: string) => onChange(selected.filter(u => u.id !== id))
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const atMax = selected.length >= MAX_NOTIFY_USERS
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {selected.map(u => (
+            <span key={u.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+              background: 'rgba(69,64,232,0.2)', color: '#a5b4fc',
+              border: '1px solid rgba(69,64,232,0.35)',
+            }}>
+              {u.name}
+              <button
+                onClick={() => remove(u.id)}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 14, opacity: 0.7 }}
+              >×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder={atMax ? `Max ${MAX_NOTIFY_USERS} users selected` : 'Search members…'}
+        disabled={atMax}
+        style={{
+          width: '100%', background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
+          padding: '10px 12px', color: 'white', fontSize: 14, outline: 'none',
+          boxSizing: 'border-box', opacity: atMax ? 0.5 : 1,
+        }}
+      />
+      {open && available.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, marginTop: 4,
+          background: '#1e2a45', border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          maxHeight: 180, overflowY: 'auto',
+        }}>
+          {available.map(u => (
+            <div
+              key={u.id}
+              onMouseDown={() => add(u)}
+              style={{
+                padding: '9px 14px', fontSize: 13, color: '#e1e8fc', cursor: 'pointer',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              {u.name}
+            </div>
+          ))}
+        </div>
+      )}
+      {!atMax && (
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 5 }}>
+          {selected.length}/{MAX_NOTIFY_USERS} selected
+        </p>
+      )}
+    </div>
+  )
 }
 
 const FEEDBACK_TYPES: { id: FeedbackType; label: string; desc: string; icon: React.ReactNode }[] = [
@@ -198,7 +306,7 @@ const FAB_DEFAULT_SHADOW = '0 4px 20px rgba(69,64,232,0.5)'
 const FAB_CUSTOM_SHADOW = '0 4px 20px rgba(0,0,0,0.4)'
 
 export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function FeedbackWidget(
-  { projectId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, showFab = true, teamsUrl, userName, onOpenChange, onCapturingChange },
+  { projectId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, showFab = true, teamsUrl, userName, notifyUsers, onOpenChange, onCapturingChange },
   ref,
 ) {
   const [open, setOpen] = useState(false)
@@ -211,7 +319,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   const [error, setError] = useState<string | null>(null)
   const canvasRef = useRef<AnnotationCanvasHandle>(null)
   const fabDivRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ px: number; py: number; fx: number; fy: number; moved: boolean } | null>(null)
+  const dragRef = useRef<{ px: number; py: number; fx: number; fy: number; moved: boolean; shift: boolean } | null>(null)
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
     try {
       const saved = localStorage.getItem(FAB_LS_KEY)
@@ -224,6 +332,23 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   })
 
   const isDisabled = projectId.startsWith('__') || projectsMsToken.startsWith('__') || filesMsToken.startsWith('__')
+
+  const openWidgetDirect = useCallback(() => {
+    if (capturing || open || isDisabled) return
+    setScreenshot(null)
+    setOpen(true)
+    setForm(INITIAL_FORM)
+    const { browser, os } = parseBrowserOS(navigator.userAgent)
+    setCapturedMeta({
+      url: window.location.href,
+      page_title: document.title || undefined,
+      browser,
+      os,
+      screen: `${window.screen.width}×${window.screen.height}`,
+    })
+    setError(null)
+    setSuccess(false)
+  }, [capturing, open, isDisabled])
 
   const openWidget = useCallback(async () => {
     if (capturing || open || isDisabled) return
@@ -253,11 +378,13 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F' && !open) openWidget()
+      if (open) return
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.altKey && e.key === 'F') openWidgetDirect()
+      else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') openWidget()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [open, openWidget])
+  }, [open, openWidget, openWidgetDirect])
 
   // First-paint reconciliation: the useState initializer read whatever was in
   // localStorage (or the default) without knowing the current viewport. If the
@@ -294,7 +421,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     if (e.button !== 0) return
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
-    dragRef.current = { px: e.clientX, py: e.clientY, fx: fabPos.x, fy: fabPos.y, moved: false }
+    dragRef.current = { px: e.clientX, py: e.clientY, fx: fabPos.x, fy: fabPos.y, moved: false, shift: e.shiftKey }
     if (fabDivRef.current) fabDivRef.current.style.transition = 'none'
   }
 
@@ -311,7 +438,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
   const onFabPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!dragRef.current) return
-    const { px, py, fx, fy, moved } = dragRef.current
+    const { px, py, fx, fy, moved, shift } = dragRef.current
     dragRef.current = null
     const rawPos = { x: fx + (e.clientX - px), y: fy + (e.clientY - py) }
     const snapped = snapToCorner(rawPos)
@@ -322,7 +449,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     }
     setFabPos(snapped)
     try { localStorage.setItem(FAB_LS_KEY, JSON.stringify(snapped)) } catch {}
-    if (!moved) openWidget()
+    if (!moved) shift ? openWidgetDirect() : openWidget()
   }
 
   const close = useCallback(() => {
@@ -336,7 +463,8 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   useImperativeHandle(ref, () => ({ open: openWidget, close }), [openWidget, close])
 
   const handleSubmit = async () => {
-    if (!form.title.trim() || !form.description.trim() || !form.type || submitting) return
+    const emailOk = !form.notifyOnResolve || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.submitterEmail)
+    if (!form.title.trim() || !form.description.trim() || !form.type || submitting || !emailOk) return
     setSubmitting(true)
     setError(null)
     try {
@@ -366,6 +494,9 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
         comments,
         metadata: capturedMeta ?? undefined,
         submitted_by_name: authorName,
+        submitted_by_email: form.notifyOnResolve && form.submitterEmail.trim() ? form.submitterEmail.trim() : undefined,
+        notify_user_ids: form.selectedNotifyUsers.length > 0 ? form.selectedNotifyUsers.map(u => u.id) : undefined,
+        teams_url: teamsUrl,
       })
       setSuccess(true)
       setTimeout(close, 2000)
@@ -389,7 +520,8 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 6, display: 'block',
   }
 
-  const canSubmit = !!form.title.trim() && !!form.description.trim() && !!form.type && !submitting
+  const emailValid = !form.notifyOnResolve || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.submitterEmail)
+  const canSubmit = !!form.title.trim() && !!form.description.trim() && !!form.type && !submitting && emailValid
 
   return (
     <>
@@ -402,7 +534,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
       >
         <button
           disabled={capturing}
-          title="Submit feedback (Ctrl+Shift+F)"
+          title="Submit feedback (Ctrl+Shift+F) · Shift+click or Ctrl+Shift+Alt+F to skip screenshot"
           onPointerDown={onFabPointerDown}
           onPointerMove={onFabPointerMove}
           onPointerUp={onFabPointerUp}
@@ -589,6 +721,54 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     style={inputStyle}
                   />
                 </div>
+
+                {/* Notify on resolve */}
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <div
+                      onClick={() => setForm((f) => ({ ...f, notifyOnResolve: !f.notifyOnResolve, submitterEmail: f.notifyOnResolve ? '' : f.submitterEmail }))}
+                      style={{
+                        width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                        border: `2px solid ${form.notifyOnResolve ? '#7c47d8' : 'rgba(255,255,255,0.2)'}`,
+                        background: form.notifyOnResolve ? '#7c47d8' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                    >
+                      {form.notifyOnResolve && (
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="2,6 5,9 10,3" />
+                        </svg>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', userSelect: 'none' }}>
+                      Notify me when this is resolved
+                    </span>
+                  </label>
+                  {form.notifyOnResolve && (
+                    <input
+                      type="email"
+                      value={form.submitterEmail}
+                      onChange={(e) => setForm((f) => ({ ...f, submitterEmail: e.target.value }))}
+                      placeholder="Your email address"
+                      style={{ ...inputStyle, marginTop: 10 }}
+                    />
+                  )}
+                </div>
+
+                {/* Notify specific users */}
+                {notifyUsers && notifyUsers.length > 0 && (
+                  <div>
+                    <label style={labelStyle}>
+                      Alert team members <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>(optional, max {MAX_NOTIFY_USERS})</span>
+                    </label>
+                    <UserMultiSelect
+                      users={notifyUsers}
+                      selected={form.selectedNotifyUsers}
+                      onChange={(u) => setForm((f) => ({ ...f, selectedNotifyUsers: u }))}
+                    />
+                  </div>
+                )}
 
                 {/* Title */}
                 <div>

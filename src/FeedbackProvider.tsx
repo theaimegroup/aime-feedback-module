@@ -20,6 +20,7 @@ export function FeedbackProvider({
   showFab,
   teamsUrl,
   userName,
+  notifyUsers,
   children,
 }: FeedbackProviderProps) {
   const widgetRef = useRef<FeedbackWidgetHandle>(null)
@@ -48,6 +49,7 @@ export function FeedbackProvider({
         showFab={showFab}
         teamsUrl={teamsUrl}
         userName={userName}
+        notifyUsers={notifyUsers}
         onOpenChange={setIsOpen}
         onCapturingChange={setIsCapturing}
       />
