@@ -337,7 +337,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     if (capturing || open || isDisabled) return
     setScreenshot(null)
     setOpen(true)
-    setForm(INITIAL_FORM)
+    setForm({ ...INITIAL_FORM, submittedByName: userName || '' })
     const { browser, os } = parseBrowserOS(navigator.userAgent)
     setCapturedMeta({
       url: window.location.href,
@@ -363,7 +363,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     setCapturing(false)
     setScreenshot(img)
     setOpen(true)
-    setForm(INITIAL_FORM)
+    setForm({ ...INITIAL_FORM, submittedByName: userName || '' })
     const { browser, os } = parseBrowserOS(navigator.userAgent)
     setCapturedMeta({
       url: window.location.href,
