@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-22
+
+### Fixed
+- README: added missing `notifyUsers` prop, corrected `userName` description, documented `Ctrl+Shift+Alt+F` shortcut, and updated annotation canvas section with colour picker and fill/stroke controls.
+
 ## [0.3.0] - 2026-05-22
 
 ### Added
