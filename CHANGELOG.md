@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-22
+
+### Fixed
+- README: added missing `notifyUsers` prop, corrected `userName` description, documented `Ctrl+Shift+Alt+F` shortcut, and updated annotation canvas section with colour picker and fill/stroke controls.
+
+## [0.3.0] - 2026-05-22
+
+### Added
+- Free color picker on the annotation canvas — replaces the fixed colour swatches. Any CSS colour is accepted.
+- Per-object fill and stroke colour controls: when a shape (rect, ellipse) is selected, separate fill and stroke pickers appear; fill can be toggled transparent with a `+`/`×` button. Arrows/lines show stroke only. Text shows a text-colour picker.
+- Canvas objects (shapes, arrows, lines, text, notes, images) are now automatically selected immediately after placement — no need to switch back to the select tool manually.
+- `userName` prop now pre-fills the "Your name" field in the feedback form on open, so authenticated users don't have to type their name.
+
 ## [0.2.1] - 2026-05-13
 
 ### Fixed

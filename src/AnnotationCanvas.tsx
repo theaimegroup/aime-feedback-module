@@ -321,6 +321,9 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
     const [canUndo,       setCanUndo]       = useState(false)
     const [canRedo,       setCanRedo]       = useState(false)
     const [selectedIsNote, setSelectedIsNote] = useState(false)
+    const [selectedObjType, setSelectedObjType] = useState<string | null>(null)
+    const [selectedFill,    setSelectedFill]    = useState<string | null>(null)
+    const [selectedStroke,  setSelectedStroke]  = useState<string | null>(null)
 
     // note text editing overlay
     const [editingNote, setEditingNote] = useState<{
@@ -554,22 +557,37 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       canvas.on('object:modified', () => saveSnapshot(canvas))
 
       // track selection for UI state
+      const clearSelState = () => {
+        setSelectedIsNote(false)
+        setSelectedObjType(null)
+        setSelectedFill(null)
+        setSelectedStroke(null)
+      }
       const onSel = () => {
         const obj = canvas.getActiveObject() as any
-        const isNote = obj?.type === 'NoteBubble'
+        if (!obj) { clearSelState(); return }
+        const isNote = obj.type === 'NoteBubble'
         setSelectedIsNote(isNote)
         if (isNote) {
+          setSelectedObjType(null); setSelectedFill(null); setSelectedStroke(null)
           const bold   = obj.noteFontWeight === 'bold'
           const italic = obj.noteFontStyle  === 'italic'
           setNoteBold(bold);   noteBoldRef.current   = bold
           setNoteItalic(italic); noteItalicRef.current = italic
           setNoteBgColor(obj.noteBgColor    || '#fde68a')
           setNoteTextColor(obj.noteTextColor || '#1a1a1a')
+        } else if (obj.type !== 'image') {
+          setSelectedObjType(obj.type)
+          const rawFill = obj.fill
+          setSelectedFill(rawFill && rawFill !== 'transparent' && rawFill !== 'rgba(0,0,0,0.01)' ? rawFill : null)
+          setSelectedStroke(obj.stroke || null)
+        } else {
+          setSelectedObjType(null); setSelectedFill(null); setSelectedStroke(null)
         }
       }
       canvas.on('selection:created', onSel)
       canvas.on('selection:updated', onSel)
-      canvas.on('selection:cleared', () => setSelectedIsNote(false))
+      canvas.on('selection:cleared', clearSelState)
 
       // double-click to edit note
       canvas.on('mouse:dblclick', (e) => {
@@ -629,10 +647,14 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
           })
           lockMidHandles(txt)
           canvas.add(txt)
-          canvas.setActiveObject(txt)
-          txt.enterEditing()
           isDrawing.current = false
           setTool('select'); toolRef.current = 'select'
+          canvas.selection = true
+          canvas.defaultCursor = 'default'
+          canvas.getObjects().forEach(o => o.set({ selectable: true, evented: true }))
+          canvas.setActiveObject(txt)
+          txt.enterEditing()
+          canvas.renderAll()
           return
         }
 
@@ -649,9 +671,13 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
             tailY:          70,
           })
           canvas.add(nb)
-          canvas.setActiveObject(nb)
           isDrawing.current = false
           setTool('select'); toolRef.current = 'select'
+          canvas.selection = true
+          canvas.defaultCursor = 'default'
+          canvas.getObjects().forEach(o => o.set({ selectable: true, evented: true }))
+          canvas.setActiveObject(nb)
+          canvas.renderAll()
           setTimeout(() => openNoteEdit(nb, canvas), 30)
           return
         }
@@ -694,14 +720,27 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
         if (!isDrawing.current) return
         isDrawing.current = false
 
+        let placed: fabric.Object | null = activeObj.current
+
         if (toolRef.current === 'arrow' && activeObj.current?.type === 'line') {
           const line = activeObj.current as fabric.Line
           const p    = canvas.getPointer(e.e)
           canvas.remove(line)
-          canvas.add(makeArrow(startPt.current.x, startPt.current.y, p.x, p.y, colorRef.current))
+          const arrow = makeArrow(startPt.current.x, startPt.current.y, p.x, p.y, colorRef.current)
+          canvas.add(arrow)
+          placed = arrow
         }
+
         activeObj.current = null
         setTool('select'); toolRef.current = 'select'
+
+        // re-enable select mode immediately (don't wait for tool effect)
+        canvas.selection = true
+        canvas.defaultCursor = 'default'
+        canvas.getObjects().forEach(o => o.set({ selectable: true, evented: true }))
+
+        if (placed) canvas.setActiveObject(placed)
+        canvas.renderAll()
       })
 
       const resizeObserver = new ResizeObserver((entries) => {
@@ -746,19 +785,27 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       canvas.renderAll()
     }, [tool])
 
-    // ── color apply to selection ─────────────────────────────────────────────
+    // ── fill / stroke apply to selection ────────────────────────────────────
 
-    const applyColorToSelection = (canvas: fabric.Canvas | null) => {
-      if (!canvas) return
-      const active = canvas.getActiveObject() as any
-      if (!active) return
-      if (active.type === 'i-text' || active.type === 'text') {
-        active.set({ fill: colorRef.current })
-      } else if (active.type !== 'NoteBubble') {
-        active.set({ stroke: colorRef.current })
-        if (active.fill && active.fill !== 'transparent') active.set({ fill: colorRef.current })
-      }
+    const applyFill = (fill: string | null) => {
+      const canvas = fabricRef.current
+      const obj = canvas?.getActiveObject() as any
+      if (!canvas || !obj || obj.type === 'NoteBubble') return
+      obj.set({ fill: fill ?? 'rgba(0,0,0,0.01)' })
+      obj.dirty = true
       canvas.renderAll()
+      saveSnapshot(canvas)
+    }
+
+    const applyStroke = (stroke: string) => {
+      const canvas = fabricRef.current
+      const obj = canvas?.getActiveObject() as any
+      if (!canvas || !obj || obj.type === 'NoteBubble') return
+      obj.set({ stroke })
+      if (obj.type === 'path') obj.set({ fill: stroke }) // arrowhead fill tracks stroke
+      obj.dirty = true
+      canvas.renderAll()
+      saveSnapshot(canvas)
     }
 
     // ── clear / reset ─────────────────────────────────────────────────────────
@@ -807,9 +854,12 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
           img.set({ left: canvas.getWidth() / 2, top: canvas.getHeight() / 2, originX: 'center', originY: 'center' })
           lockMidHandles(img)
           canvas.add(img)
+          setTool('select'); toolRef.current = 'select'
+          canvas.selection = true
+          canvas.defaultCursor = 'default'
+          canvas.getObjects().forEach(o => o.set({ selectable: true, evented: true }))
           canvas.setActiveObject(img)
           canvas.renderAll()
-          setTool('select'); toolRef.current = 'select'
         })
       }
       reader.readAsDataURL(file)
@@ -836,6 +886,58 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
           <button onClick={() => fileInputRef.current?.click()} title="Add image" style={btn()}>
             <ImagePlus size={14} />
           </button>
+
+          {/* drawing color — when no object selected and not note tool */}
+          {!(tool === 'note' || selectedIsNote) && !selectedObjType && (
+            <>
+              <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+              <label title="Drawing color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                <span>Color</span>
+                <input type="color" value={color} onChange={e => { setColor(e.target.value); colorRef.current = e.target.value }}
+                  style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+              </label>
+            </>
+          )}
+
+          {/* fill + stroke — when a non-note shape is selected */}
+          {selectedObjType && !selectedIsNote && (
+            <>
+              <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+              {/* fill — rect, ellipse */}
+              {(selectedObjType === 'rect' || selectedObjType === 'ellipse') && (
+                <label title="Fill color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                  <span>Fill</span>
+                  {selectedFill !== null
+                    ? <>
+                        <input type="color" value={selectedFill} onChange={e => { setSelectedFill(e.target.value); applyFill(e.target.value) }}
+                          style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                        <button title="Remove fill" onClick={() => { setSelectedFill(null); applyFill(null) }} style={{ ...btn(), fontSize: 11, padding: '0 5px', lineHeight: 1 }}>×</button>
+                      </>
+                    : <button title="Add fill" onClick={() => { setSelectedFill(colorRef.current); applyFill(colorRef.current) }} style={{ ...btn(), fontSize: 11, padding: '0 5px', lineHeight: 1 }}>+</button>
+                  }
+                </label>
+              )}
+
+              {/* text color */}
+              {selectedObjType === 'i-text' && (
+                <label title="Text color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                  <span>Color</span>
+                  <input type="color" value={selectedFill ?? '#ffffff'} onChange={e => { setSelectedFill(e.target.value); applyFill(e.target.value) }}
+                    style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                </label>
+              )}
+
+              {/* stroke — rect, ellipse, arrow (path), line */}
+              {(selectedObjType === 'rect' || selectedObjType === 'ellipse' || selectedObjType === 'path' || selectedObjType === 'line') && (
+                <label title="Stroke color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                  <span>Stroke</span>
+                  <input type="color" value={selectedStroke ?? '#ef4444'} onChange={e => { setSelectedStroke(e.target.value); applyStroke(e.target.value) }}
+                    style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                </label>
+              )}
+            </>
+          )}
 
           {/* note controls — visible when note tool active or note selected */}
           {(tool === 'note' || selectedIsNote) && (

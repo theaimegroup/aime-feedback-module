@@ -60,7 +60,8 @@ Both `FeedbackProvider` and `FeedbackWidget` accept the same props (provider als
 | `fabBackground` | `string` | — | Any CSS `background` value (color, gradient). Defaults to built-in purple gradient. |
 | `showFab` | `boolean` | — | Render the built-in floating action button. Set to `false` to drive the widget entirely via `useFeedback()`. Defaults to `true`. |
 | `teamsUrl` | `string` | — | URL of your AIME teams app (e.g. `https://teams.aime.works`). When set, the modal header renders a "View in Teams" link that deep-links to the project's feedback inbox. |
-| `userName` | `string` | — | Display name attached to comments on annotated screenshots |
+| `userName` | `string` | — | Name of the logged-in user. Pre-fills the "Your name" field in the feedback form on open. |
+| `notifyUsers` | `{ id: string; name: string }[]` | — | List of team members shown in the notification dropdown so the submitter can choose who to alert. Validated server-side — only actual project members receive emails. |
 
 > **Placeholder detection** — if any required string prop starts with `__`, the widget is disabled and renders nothing. Useful for environments where tokens aren't configured yet.
 
@@ -69,7 +70,9 @@ Both `FeedbackProvider` and `FeedbackWidget` accept the same props (provider als
 ## Opening the widget
 
 - **Click the FAB** — bottom-left by default; drag to any corner to reposition.
-- **Keyboard** — `Ctrl + Shift + F` (Windows/Linux) or `Cmd + Shift + F` (macOS).
+- **Keyboard** — `Ctrl + Shift + F` / `Cmd + Shift + F` — captures screenshot then opens.
+- **Keyboard (no screenshot)** — `Ctrl + Shift + Alt + F` / `Cmd + Shift + Alt + F` — opens immediately, skips capture.
+- **Shift-click the FAB** — also skips screenshot capture.
 
 ---
 
@@ -127,11 +130,16 @@ When the widget opens, it captures a screenshot of the current viewport and load
 |---|---|
 | Select | Move, resize, or delete objects |
 | Text | Add a text label |
-| Rectangle | Draw a rectangle |
-| Ellipse | Draw an ellipse |
-| Arrow | Draw a directional arrow |
+| Rectangle | Draw a rectangle (fill + stroke colour controls when selected) |
+| Ellipse | Draw an ellipse (fill + stroke colour controls when selected) |
+| Arrow | Draw a directional arrow (stroke colour when selected) |
+| Line | Draw a straight line (stroke colour when selected) |
 | Sticky note | Add a coloured note with a draggable tail and bold/italic formatting |
 | Image | Upload an image from disk |
+
+Objects are **automatically selected** after placement — no need to switch back to the Select tool.
+
+A **free colour picker** appears in the toolbar. For shapes, separate fill and stroke pickers are shown when an object is selected; fill can be toggled transparent.
 
 **Keyboard shortcuts:** `Ctrl/Cmd + Z` undo · `Ctrl/Cmd + Y` redo · `Del` delete selected.
 

@@ -3,6 +3,11 @@ import type { ReactNode } from 'react'
 export type FeedbackType = 'bug' | 'feature_request' | 'improvement' | 'question'
 export type FeedbackPriority = 'low' | 'medium' | 'high' | 'critical'
 
+export interface NotifyUser {
+  id: string
+  name: string
+}
+
 export interface FeedbackImage {
   id: string
   url: string
@@ -35,6 +40,9 @@ export interface FeedbackPayload {
   comments: FeedbackComment[]
   metadata?: FeedbackMeta
   submitted_by_name?: string
+  submitted_by_email?: string
+  notify_user_ids?: string[]
+  teams_url?: string
 }
 
 export interface FeedbackProviderProps {
@@ -50,6 +58,8 @@ export interface FeedbackProviderProps {
   teamsUrl?: string
   /** Name shown as the comment author when the user submits feedback with annotations */
   userName?: string
+  /** Project members available for targeted notifications. When provided, a multi-select appears in the form (max 5). */
+  notifyUsers?: NotifyUser[]
   children: ReactNode
 }
 
