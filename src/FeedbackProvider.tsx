@@ -20,6 +20,7 @@ export function FeedbackProvider({
   showFab,
   teamsUrl,
   userName,
+  userEmail,
   notifyUsers,
   children,
 }: FeedbackProviderProps) {
@@ -49,6 +50,7 @@ export function FeedbackProvider({
         showFab={showFab}
         teamsUrl={teamsUrl}
         userName={userName}
+        userEmail={userEmail}
         notifyUsers={notifyUsers}
         onOpenChange={setIsOpen}
         onCapturingChange={setIsCapturing}

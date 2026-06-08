@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AnnotationCanvas, type AnnotationCanvasHandle } from './AnnotationCanvas'
 import { submitFeedback } from './api'
 import { captureScreenshot } from './screenshot'
-import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackType, FeedbackWidgetHandle, NotifyUser } from './types'
+import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackStatus, FeedbackType, FeedbackWidgetHandle, NotifyUser } from './types'
 import { uploadImage } from './upload'
 import { AIME_LOGO_DATA_URL } from './logo'
 
@@ -23,6 +23,8 @@ interface Props {
   teamsUrl?: string
   /** Name shown as the author on annotation comments. Defaults to "Anonymous". */
   userName?: string
+  /** Submitter email from the host session. Pre-fills the email field and pre-checks "Notify me when resolved". */
+  userEmail?: string
   /** Project members available for targeted notifications. When provided, a multi-select appears in the form (max 5). */
   notifyUsers?: NotifyUser[]
   /** Called whenever the modal opens or closes. */
@@ -35,6 +37,7 @@ interface FormState {
   title: string
   description: string
   type: FeedbackType | null
+  status: FeedbackStatus
   priority: FeedbackPriority
   tags: string[]
   submittedByName: string
@@ -49,6 +52,7 @@ const INITIAL_FORM: FormState = {
   title: '',
   description: '',
   type: null,
+  status: 'new',
   priority: 'medium',
   tags: [],
   submittedByName: '',
@@ -211,6 +215,53 @@ const TYPE_COLORS: Record<FeedbackType, string> = {
 
 const PRIORITIES: FeedbackPriority[] = ['low', 'medium', 'high', 'critical']
 
+// End users can only set early-lifecycle statuses; resolved/closed are reserved for the Teams app.
+const STATUS_OPTIONS: { id: FeedbackStatus; label: string }[] = [
+  { id: 'new', label: 'New' },
+  { id: 'triaged', label: 'Triaged' },
+  { id: 'in_progress', label: 'In Progress' },
+]
+
+const getViewportW = () => (typeof window !== 'undefined' ? window.innerWidth : 1024)
+const getViewportH = () => (typeof window !== 'undefined' ? window.innerHeight : 768)
+
+/** A single row in the FAB action menu. `icon` is the inner paths of a 24×24 stroke SVG. */
+function FabMenuItem({
+  label,
+  hint,
+  icon,
+  danger,
+  onClick,
+}: {
+  label: string
+  hint?: string
+  icon: React.ReactNode
+  danger?: boolean
+  onClick: () => void
+}) {
+  const color = danger ? '#fca5a5' : 'rgba(255,255,255,0.85)'
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+        padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
+        background: 'transparent', border: 'none', textAlign: 'left', color,
+        fontFamily: 'inherit', fontSize: 13.5,
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = danger ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.07)' }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.85 }}>
+        {icon}
+      </svg>
+      <span style={{ flex: 1, fontWeight: 500 }}>{label}</span>
+      {hint && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>{hint}</span>}
+    </button>
+  )
+}
+
 /**
  * Derive an env tag from the teamsUrl so users know which environment the
  * feedback will be submitted to. Returns label + color tone for the badge.
@@ -234,6 +285,7 @@ function deriveEnvTag(teamsUrl: string | undefined): { label: string; tone: 'war
 const FAB_SIZE = 52
 const FAB_MARGIN = 24
 const FAB_LS_KEY = '__aime_fb_pos__'
+const FAB_HIDDEN_LS_KEY = '__aime_fb_hidden__'
 
 function getDefaultFabPos() {
   if (typeof window === 'undefined') return { x: FAB_MARGIN, y: 400 }
@@ -306,10 +358,14 @@ const FAB_DEFAULT_SHADOW = '0 4px 20px rgba(69,64,232,0.5)'
 const FAB_CUSTOM_SHADOW = '0 4px 20px rgba(0,0,0,0.4)'
 
 export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function FeedbackWidget(
-  { projectId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, showFab = true, teamsUrl, userName, notifyUsers, onOpenChange, onCapturingChange },
+  { projectId, projectsMsToken, projectsMsBaseUrl, filesMsApiBaseUrl, filesMsToken, fabBackground, showFab = true, teamsUrl, userName, userEmail, notifyUsers, onOpenChange, onCapturingChange },
   ref,
 ) {
   const [open, setOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [fabHidden, setFabHidden] = useState<boolean>(() => {
+    try { return localStorage.getItem(FAB_HIDDEN_LS_KEY) === '1' } catch { return false }
+  })
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [capturing, setCapturing] = useState(false)
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
@@ -333,11 +389,44 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
   const isDisabled = projectId.startsWith('__') || projectsMsToken.startsWith('__') || filesMsToken.startsWith('__')
 
+  // Persist + reveal the FAB. Triggering the widget always brings the FAB back.
+  const revealFab = useCallback(() => {
+    setFabHidden(false)
+    try { localStorage.setItem(FAB_HIDDEN_LS_KEY, '0') } catch {}
+  }, [])
+
+  const hideFab = useCallback(() => {
+    setMenuOpen(false)
+    setFabHidden(true)
+    try { localStorage.setItem(FAB_HIDDEN_LS_KEY, '1') } catch {}
+  }, [])
+
+  const toggleFabHidden = useCallback(() => {
+    setFabHidden((prev) => {
+      const next = !prev
+      if (next) setMenuOpen(false)
+      try { localStorage.setItem(FAB_HIDDEN_LS_KEY, next ? '1' : '0') } catch {}
+      return next
+    })
+  }, [])
+
+  // Seed the form, pre-filling submitter identity from the host session.
+  const seedForm = useCallback(() => {
+    setForm({
+      ...INITIAL_FORM,
+      submittedByName: userName || '',
+      submitterEmail: userEmail || '',
+      notifyOnResolve: !!userEmail,
+    })
+  }, [userName, userEmail])
+
   const openWidgetDirect = useCallback(() => {
     if (capturing || open || isDisabled) return
+    setMenuOpen(false)
+    revealFab()
     setScreenshot(null)
     setOpen(true)
-    setForm({ ...INITIAL_FORM, submittedByName: userName || '' })
+    seedForm()
     const { browser, os } = parseBrowserOS(navigator.userAgent)
     setCapturedMeta({
       url: window.location.href,
@@ -348,10 +437,12 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     })
     setError(null)
     setSuccess(false)
-  }, [capturing, open, isDisabled])
+  }, [capturing, open, isDisabled, revealFab, seedForm])
 
   const openWidget = useCallback(async () => {
     if (capturing || open || isDisabled) return
+    setMenuOpen(false)
+    revealFab()
     setCapturing(true)
     await new Promise<void>((r) => requestAnimationFrame(() => r()))
     let img: string | null = null
@@ -363,7 +454,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     setCapturing(false)
     setScreenshot(img)
     setOpen(true)
-    setForm({ ...INITIAL_FORM, submittedByName: userName || '' })
+    seedForm()
     const { browser, os } = parseBrowserOS(navigator.userAgent)
     setCapturedMeta({
       url: window.location.href,
@@ -378,13 +469,19 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Hide/show the FAB — works regardless of modal state (only meaningful when showFab is enabled).
+      if (showFab && (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'H' || e.key === 'h')) {
+        e.preventDefault()
+        toggleFabHidden()
+        return
+      }
       if (open) return
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.altKey && e.key === 'F') openWidgetDirect()
       else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') openWidget()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [open, openWidget, openWidgetDirect])
+  }, [open, openWidget, openWidgetDirect, showFab, toggleFabHidden])
 
   // First-paint reconciliation: the useState initializer read whatever was in
   // localStorage (or the default) without knowing the current viewport. If the
@@ -416,6 +513,21 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  // Dismiss the FAB action menu on outside-click or Escape.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDocDown = (e: MouseEvent) => {
+      if (fabDivRef.current && !fabDivRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('mousedown', onDocDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
 
   const onFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return
@@ -449,7 +561,8 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     }
     setFabPos(snapped)
     try { localStorage.setItem(FAB_LS_KEY, JSON.stringify(snapped)) } catch {}
-    if (!moved) shift ? openWidgetDirect() : openWidget()
+    // Plain click opens the action menu; shift+click remains a shortcut to capture without a screenshot.
+    if (!moved) shift ? openWidgetDirect() : setMenuOpen((v) => !v)
   }
 
   const close = useCallback(() => {
@@ -488,6 +601,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
         title: form.title.trim(),
         description: form.description.trim(),
         type: form.type,
+        status: form.status,
         priority: form.priority,
         tags: form.tags,
         images,
@@ -526,7 +640,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   return (
     <>
       <style>{`@keyframes aime-spin { to { transform: rotate(360deg) } }`}</style>
-      {showFab && (
+      {showFab && !fabHidden && (
       <div
         id="__aime-fb__"
         ref={fabDivRef}
@@ -534,7 +648,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
       >
         <button
           disabled={capturing}
-          title="Submit feedback (Ctrl+Shift+F) · Shift+click or Ctrl+Shift+Alt+F to skip screenshot"
+          title="Feedback options (Ctrl+Shift+F to capture · Shift+click to skip screenshot · Ctrl+Shift+H to hide)"
           onPointerDown={onFabPointerDown}
           onPointerMove={onFabPointerMove}
           onPointerUp={onFabPointerUp}
@@ -561,6 +675,47 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
             </svg>
           )}
         </button>
+
+        {menuOpen && (
+          <div
+            role="menu"
+            style={{
+              position: 'absolute',
+              [fabPos.y > getViewportH() / 2 ? 'bottom' : 'top']: FAB_SIZE + 10,
+              [fabPos.x > getViewportW() / 2 ? 'right' : 'left']: 0,
+              minWidth: 224,
+              background: '#1A243E',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 12,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+              padding: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+            }}
+          >
+            <FabMenuItem
+              label="Capture Feedback"
+              hint="with screenshot"
+              onClick={() => openWidget()}
+              icon={<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />}
+            />
+            <FabMenuItem
+              label="Capture without screenshot"
+              onClick={() => openWidgetDirect()}
+              icon={<><path d="M21 15V5a2 2 0 0 0-2-2H7" /><path d="M3 7v12a2 2 0 0 0 2 2h12" /><path d="M3 3l18 18" /></>}
+            />
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 6px' }} />
+            <FabMenuItem
+              label="Hide FAB"
+              hint="Ctrl+Shift+H"
+              danger
+              onClick={hideFab}
+              icon={<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><path d="M3 3l18 18" /></>}
+            />
+          </div>
+        )}
       </div>
       )}
 
@@ -830,8 +985,22 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   </div>
                 </div>
 
-                {/* Priority + Tags */}
+                {/* Status + Priority + Tags */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <label style={labelStyle}>Status</label>
+                    <select
+                      value={form.status}
+                      onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as FeedbackStatus }))}
+                      style={{ ...inputStyle, cursor: 'pointer' }}
+                    >
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s.id} value={s.id} style={{ background: '#1A243E' }}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <label style={labelStyle}>Priority</label>
                     <select
