@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 export type FeedbackType = 'bug' | 'feature_request' | 'improvement' | 'question'
 export type FeedbackPriority = 'low' | 'medium' | 'high' | 'critical'
+export type FeedbackStatus = 'new' | 'triaged' | 'in_progress' | 'resolved' | 'closed'
 
 export interface NotifyUser {
   id: string
@@ -34,6 +35,7 @@ export interface FeedbackPayload {
   title: string
   description: string
   type: FeedbackType
+  status?: FeedbackStatus
   priority: FeedbackPriority
   tags: string[]
   images: FeedbackImage[]
@@ -58,8 +60,18 @@ export interface FeedbackProviderProps {
   teamsUrl?: string
   /** Name shown as the comment author when the user submits feedback with annotations */
   userName?: string
-  /** Project members available for targeted notifications. When provided, a multi-select appears in the form (max 5). */
-  notifyUsers?: NotifyUser[]
+  /** Submitter's email from the host app's session. When provided, the email field is pre-filled and "Notify me when resolved" is pre-checked. */
+  userEmail?: string
+  /**
+   * Project members available for targeted notifications. When provided, a
+   * multi-select appears in the form (max 5).
+   *
+   * Accepts either a `NotifyUser[]` or a raw string (e.g. straight from
+   * `import.meta.env.VITE_FEEDBACK_NOTIFY_USERS`) — the provider parses it
+   * defensively and ignores anything malformed, so a bad env value can't crash
+   * the host app.
+   */
+  notifyUsers?: NotifyUser[] | string
   children: ReactNode
 }
 
