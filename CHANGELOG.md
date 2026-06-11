@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-11
+
+### Fixed
+- **Fail-safe parsing of `notifyUsers`.** A malformed value (most often a double-escaped `VITE_FEEDBACK_NOTIFY_USERS` produced by dotenv) caused the host app's inline `JSON.parse` to throw and crash the page. The provider now parses `notifyUsers` internally via the new exported `parseNotifyUsers`, which never throws — it accepts a `NotifyUser[]`, a JSON string, a base64-encoded JSON string, a dotenv double-escaped string, or a quote-wrapped variant, validates each entry to `{ id, name }`, and falls back to `[]` on anything unparseable.
+- `FeedbackProvider`'s `notifyUsers` prop now also accepts a raw `string` (e.g. straight from `import.meta.env.VITE_FEEDBACK_NOTIFY_USERS`), not just `NotifyUser[]`.
+- Null-safe `isDisabled` check — a missing `projectId`/token (e.g. unset env var) no longer throws via `.startsWith`.
+
+### Added
+- `FeedbackErrorBoundary` wraps the widget so any render-time error inside the feedback UI is contained and can never crash the host app.
+- `parseNotifyUsers` is now a public export.
+
 ## [0.3.1] - 2026-05-22
 
 ### Fixed

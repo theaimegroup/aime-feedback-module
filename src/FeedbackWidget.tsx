@@ -387,7 +387,16 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     return getDefaultFabPos()
   })
 
-  const isDisabled = projectId.startsWith('__') || projectsMsToken.startsWith('__') || filesMsToken.startsWith('__')
+  // Disabled when a required credential is missing or still a placeholder.
+  // Null-safe: a generated app may pass `undefined` from an unset env var, and
+  // that must not throw.
+  const isDisabled =
+    !projectId ||
+    !projectsMsToken ||
+    !filesMsToken ||
+    projectId.startsWith('__') ||
+    projectsMsToken.startsWith('__') ||
+    filesMsToken.startsWith('__')
 
   // Persist + reveal the FAB. Triggering the widget always brings the FAB back.
   const revealFab = useCallback(() => {
