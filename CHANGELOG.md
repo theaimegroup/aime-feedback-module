@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-06-26
+
+### Added
+- **Restore-hint toast.** When the FAB is hidden (via the menu or the `Ctrl/⌘+Shift+H` shortcut), a toast appears explaining how to bring it back. It is anchored to the corner where the FAB was last placed, shows a platform-aware shortcut label (`⌘` on macOS, `Ctrl` elsewhere), includes a dismiss (×) button, and shows a seconds countdown before it auto-dismisses (7s). Clicking the toast body restores the FAB.
+
 ## [0.3.3] - 2026-06-11
 
 ### Fixed
