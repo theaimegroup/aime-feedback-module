@@ -284,6 +284,7 @@ function deriveEnvTag(teamsUrl: string | undefined): { label: string; tone: 'war
 
 const FAB_SIZE = 52
 const FAB_MARGIN = 24
+const RESTORE_HINT_SECONDS = 7
 const FAB_LS_KEY = '__aime_fb_pos__'
 const FAB_HIDDEN_LS_KEY = '__aime_fb_hidden__'
 
@@ -366,6 +367,10 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   const [fabHidden, setFabHidden] = useState<boolean>(() => {
     try { return localStorage.getItem(FAB_HIDDEN_LS_KEY) === '1' } catch { return false }
   })
+  // Brief hint shown when the FAB is hidden, telling the user how to bring it back.
+  const [restoreHint, setRestoreHint] = useState(false)
+  const [restoreCountdown, setRestoreCountdown] = useState(RESTORE_HINT_SECONDS)
+  const restoreHintTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [capturing, setCapturing] = useState(false)
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
@@ -404,20 +409,47 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     try { localStorage.setItem(FAB_HIDDEN_LS_KEY, '0') } catch {}
   }, [])
 
+  const dismissHint = useCallback(() => {
+    if (restoreHintTimer.current) { clearInterval(restoreHintTimer.current); restoreHintTimer.current = null }
+    setRestoreHint(false)
+  }, [])
+
+  // Show the "here's how to bring it back" hint whenever the FAB gets hidden, with a
+  // visible per-second countdown that auto-dismisses at 0.
+  const showRestoreHint = useCallback(() => {
+    if (restoreHintTimer.current) clearInterval(restoreHintTimer.current)
+    setRestoreHint(true)
+    setRestoreCountdown(RESTORE_HINT_SECONDS)
+    restoreHintTimer.current = setInterval(() => {
+      setRestoreCountdown((c) => {
+        if (c <= 1) {
+          if (restoreHintTimer.current) { clearInterval(restoreHintTimer.current); restoreHintTimer.current = null }
+          setRestoreHint(false)
+          return 0
+        }
+        return c - 1
+      })
+    }, 1000)
+  }, [])
+
+  useEffect(() => () => { if (restoreHintTimer.current) clearInterval(restoreHintTimer.current) }, [])
+
   const hideFab = useCallback(() => {
     setMenuOpen(false)
     setFabHidden(true)
     try { localStorage.setItem(FAB_HIDDEN_LS_KEY, '1') } catch {}
-  }, [])
+    showRestoreHint()
+  }, [showRestoreHint])
 
   const toggleFabHidden = useCallback(() => {
     setFabHidden((prev) => {
       const next = !prev
-      if (next) setMenuOpen(false)
+      if (next) { setMenuOpen(false); showRestoreHint() }
+      else dismissHint()
       try { localStorage.setItem(FAB_HIDDEN_LS_KEY, next ? '1' : '0') } catch {}
       return next
     })
-  }, [])
+  }, [showRestoreHint, dismissHint])
 
   // Seed the form, pre-filling submitter identity from the host session.
   const seedForm = useCallback(() => {
@@ -648,7 +680,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
   return (
     <>
-      <style>{`@keyframes aime-spin { to { transform: rotate(360deg) } }`}</style>
+      <style>{`@keyframes aime-spin { to { transform: rotate(360deg) } } @keyframes aime-fb-hint-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }`}</style>
       {showFab && !fabHidden && (
       <div
         id="__aime-fb__"
@@ -726,6 +758,83 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
           </div>
         )}
       </div>
+      )}
+
+      {restoreHint && createPortal((() => {
+        // Anchor the hint to whichever corner the FAB was last snapped to, so it
+        // appears right where the user expects the button to be.
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 0
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 0
+        const isLeft = fabPos.x + FAB_SIZE / 2 < vw / 2
+        const isTop = fabPos.y + FAB_SIZE / 2 < vh / 2
+        return (
+        <div
+          role="status"
+          aria-live="polite"
+          onClick={() => { dismissHint(); revealFab() }}
+          style={{
+            position: 'fixed',
+            [isLeft ? 'left' : 'right']: FAB_MARGIN,
+            [isTop ? 'top' : 'bottom']: FAB_MARGIN,
+            zIndex: 999999, maxWidth: `calc(100vw - ${FAB_MARGIN * 2}px)`,
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: '#1A243E', color: 'white',
+            border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10,
+            padding: '10px 14px', cursor: 'pointer',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
+            fontSize: 13, lineHeight: 1.4,
+            fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+            animation: `aime-fb-hint-in 0.18s ease-out`,
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.85 }}>
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><path d="M3 3l18 18" />
+          </svg>
+          <span style={{ maxWidth: 210 }}>
+            Feedback button hidden. Press{' '}
+            <kbd style={{
+              background: 'rgba(255,255,255,0.12)', borderRadius: 4,
+              padding: '1px 6px', fontSize: 12, fontWeight: 600,
+              fontFamily: 'inherit', whiteSpace: 'nowrap',
+            }}>
+              {(typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform)) ? '⌘' : 'Ctrl'}
+              {' + Shift + H'}
+            </kbd>
+            {' '}to bring it back.
+          </span>
+          <div style={{ flexShrink: 0, marginLeft: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              title="Dismiss"
+              onClick={(e) => {
+                e.stopPropagation() // don't trigger the toast's reveal-FAB click
+                dismissHint()
+              }}
+              style={{
+                padding: 2, background: 'transparent', border: 'none', cursor: 'pointer',
+                color: 'rgba(255,255,255,0.55)', lineHeight: 0,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'white' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.55)' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+            {/* Seconds-remaining text until the hint auto-dismisses. */}
+            <span style={{
+              fontSize: 11, fontWeight: 600, lineHeight: 1,
+              color: 'rgba(255,255,255,0.5)', fontVariantNumeric: 'tabular-nums',
+            }}>
+              {restoreCountdown}s
+            </span>
+          </div>
+        </div>
+        )
+      })(),
+        document.body,
       )}
 
       {open && createPortal(
