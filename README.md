@@ -31,10 +31,10 @@ export default function App() {
   return (
     <FeedbackProvider
       projectId="your-aime-project-id"
-      projectsMsToken={process.env.PROJECTS_MS_TOKEN!}
-      projectsMsBaseUrl={process.env.PROJECTS_MS_URL!}
-      filesMsApiBaseUrl={process.env.FILES_MS_URL!}
-      filesMsToken={process.env.FILES_MS_TOKEN!}
+      projectsMsToken={FEEDBACK_PROJECTS_MS_TOKEN}
+      projectsMsBaseUrl={FEEDBACK_PROJECTS_MS_URL}
+      filesMsApiBaseUrl={FEEDBACK_FILES_MS_URL}
+      filesMsToken={FEEDBACK_FILES_MS_TOKEN}
     >
       <YourApp />
     </FeedbackProvider>
@@ -42,7 +42,23 @@ export default function App() {
 }
 ```
 
+No stylesheet import is required; the widget is fully self-styled.
+
 A floating action button appears in the bottom-left corner. Drag it to any corner — position persists in `localStorage`.
+
+### Environment variables (read this)
+
+`FeedbackProvider` is a **client component**, so the four URL/token values must be exposed to the **browser** using your framework's public env prefix. A bare `process.env.PROJECTS_MS_TOKEN` is `undefined` in the browser, so the widget still renders but every API call (submit feedback, upload image) silently fails.
+
+| Framework | How to read it client-side |
+|---|---|
+| **Next.js** | `process.env.NEXT_PUBLIC_FEEDBACK_PROJECTS_MS_TOKEN` (prefix `NEXT_PUBLIC_`) |
+| **Vite** | `import.meta.env.VITE_FEEDBACK_PROJECTS_MS_TOKEN` (prefix `VITE_`) |
+| **CRA** | `process.env.REACT_APP_FEEDBACK_PROJECTS_MS_TOKEN` (prefix `REACT_APP_`) |
+
+> **Security:** `projectsMsToken` and `filesMsToken` are shipped to the browser (unavoidable for a client-side widget). Use tokens scoped to feedback + file upload only, not broad admin tokens.
+
+> **Tip:** fall back to a `"__missing__"` sentinel when a var is unset, e.g. `projectsMsToken={process.env.NEXT_PUBLIC_FEEDBACK_PROJECTS_MS_TOKEN || "__missing_token__"}`. Any required prop starting with `__` cleanly disables the widget instead of firing broken requests (see [Props](#props)).
 
 ---
 
@@ -57,11 +73,12 @@ Both `FeedbackProvider` and `FeedbackWidget` accept the same props (provider als
 | `projectsMsBaseUrl` | `string` | ✓ | Base URL of the projects microservice |
 | `filesMsApiBaseUrl` | `string` | ✓ | Base URL of the files microservice |
 | `filesMsToken` | `string` | ✓ | Bearer token for image uploads |
-| `fabBackground` | `string` | — | Any CSS `background` value (color, gradient). Defaults to built-in purple gradient. |
-| `showFab` | `boolean` | — | Render the built-in floating action button. Set to `false` to drive the widget entirely via `useFeedback()`. Defaults to `true`. |
-| `teamsUrl` | `string` | — | URL of your AIME teams app (e.g. `https://teams.aime.works`). When set, the modal header renders a "View in Teams" link that deep-links to the project's feedback inbox. |
-| `userName` | `string` | — | Name of the logged-in user. Pre-fills the "Your name" field in the feedback form on open. |
-| `notifyUsers` | `{ id: string; name: string }[]` | — | List of team members shown in the notification dropdown so the submitter can choose who to alert. Validated server-side — only actual project members receive emails. |
+| `fabBackground` | `string` |  | Any CSS `background` value (color, gradient). Defaults to built-in purple gradient. |
+| `showFab` | `boolean` |  | Render the built-in floating action button. Set to `false` to drive the widget entirely via `useFeedback()`. Defaults to `true`. |
+| `teamsUrl` | `string` |  | URL of your AIME teams app (e.g. `https://teams.aime.works`). When set, the modal header renders a "View in Teams" link that deep-links to the project's feedback inbox. |
+| `userName` | `string` |  | Name of the logged-in user. Pre-fills the "Your name" field in the feedback form on open. |
+| `userEmail` | `string` |  | Submitter's email from your app's session. When set, the email field is pre-filled and "Notify me when resolved" is pre-checked. |
+| `notifyUsers` | `{ id: string; name: string }[] \| string` |  | Team members shown in the notification dropdown so the submitter can choose who to alert. Accepts an array or a raw env string (JSON/CSV); parsed defensively, malformed values are ignored. Validated server-side; only actual project members receive emails. |
 
 > **Placeholder detection** — if any required string prop starts with `__`, the widget is disabled and renders nothing. Useful for environments where tokens aren't configured yet.
 
@@ -156,6 +173,25 @@ The annotated screenshot is uploaded automatically on submit.
 | **Type** | `bug` · `feature_request` · `improvement` · `question` |
 | **Priority** | `low` · `medium` · `high` · `critical` (default: `medium`) |
 | **Tags** | Freeform. Commit a tag with `Tab`. |
+
+---
+
+## FAQ
+
+**How do I get my `projectId`?**
+Open the project in the AIME platform (the one you want feedback routed to) and copy the ID from its URL. Feedback submitted through the widget is attached to that project.
+
+**Do I need a separate "feedback project" for each app?**
+No. Point `projectId` at the same project you build and deploy in, and feedback lands there alongside everything else. There's no need to create a dedicated feedback project in AIME Teams.
+
+**The FAB shows but nothing submits, or image uploads fail.**
+Almost always an env-var issue. `FeedbackProvider` runs in the browser, so the tokens/URLs must use your framework's public prefix (`NEXT_PUBLIC_`, `VITE_`, `REACT_APP_`); a bare `process.env.X` is `undefined` client-side and the calls silently fail. See [Environment variables](#environment-variables-read-this).
+
+**Where does submitted feedback show up?**
+In that project's feedback inbox in AIME Teams. Set `teamsUrl` to add a deep link to it from the widget's modal header.
+
+**Can I trigger the widget from my own button instead of the FAB?**
+Yes: set `showFab={false}` and call `open()` from the `useFeedback()` hook. See [Controlling the widget programmatically](#controlling-the-widget-programmatically).
 
 ---
 
