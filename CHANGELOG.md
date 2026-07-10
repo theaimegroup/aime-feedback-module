@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-10
+
+### Added
+- **Text font size control.** Selecting a text element now shows a font size dropdown (10–48px) in the annotation toolbar.
+- **Note font size control.** Sticky notes have a font size dropdown in the toolbar, visible when the note tool is active or a note is selected. Font size defaults for new notes.
+
+### Changed
+- **Notes auto-size to content.** New notes and notes with pasted/edited text now automatically resize width and height to fit the text content. Bubble dimensions recalculate on text edit, font size change, bold/italic toggle, and resize.
+- **Note resize changes font size, not scale.** Resizing a note via corner or mid handles now adjusts `fontSize` (vertical axis) and `width` (horizontal axis) instead of applying a visual scale transform. Text reflows within the new dimensions. Height always recalculates from content.
+- **Text resize changes font size.** Resizing a text element converts the scale factor to `fontSize` on mouse-up — text no longer distorts when resized.
+- **Free resize by default.** `uniformScaling` is now off — corner handles free-resize; hold Shift to lock aspect ratio.
+
+### Fixed
+- Note tail no longer drifts inside the bubble body after the bubble resizes (tail is re-clamped on every dimension change).
+- Note hit-test area now updates after text edit — clicking anywhere on the expanded bubble works immediately.
+
 ## [0.3.4] - 2026-06-26
 
 ### Added
