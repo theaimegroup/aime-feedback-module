@@ -60,6 +60,25 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   return lines
 }
 
+function measureNoteSize(text: string, fontSize: number, fontWeight: string, fontStyle: string): { width: number; height: number } {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px sans-serif`
+  const MIN_W = 120, MAX_W = 320, PAD_X = 24, PAD_Y = 20
+  // determine wrapping width based on longest unwrapped line
+  const rawLines = text.split('\n')
+  let naturalW = MIN_W
+  for (const l of rawLines) {
+    naturalW = Math.max(naturalW, ctx.measureText(l).width + PAD_X)
+  }
+  naturalW = Math.min(naturalW, MAX_W)
+  const wrapW = naturalW - PAD_X
+  const wrapped = wrapText(ctx, text, wrapW)
+  const lineH = fontSize * 1.4
+  const h = Math.max(50, wrapped.length * lineH + PAD_Y)
+  return { width: Math.round(Math.max(MIN_W, naturalW)), height: Math.round(h) }
+}
+
 function buildBubblePath(W: number, H: number, R: number, tx: number, ty: number): string {
   const hw = W / 2
   const hh = H / 2
@@ -136,10 +155,53 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
     this.noteFontStyle  = (options.noteFontStyle  as string)  ?? 'normal'
     this.objectCaching = false  // tail renders outside width×height bounds
     this._setupControls()
+    // auto-size based on text content if no explicit width/height specified
+    if (!options.width && !options.height) this._recalcSize()
+  },
+
+  _recalcSize(keepWidth?: boolean) {
+    const text = this.noteText as string
+    const fs   = this.noteFontSize as number
+    const fw   = this.noteFontWeight as string
+    const fs2  = this.noteFontStyle as string
+    if (keepWidth) {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')!
+      ctx.font = `${fs2} ${fw} ${fs}px sans-serif`
+      const W = this.width as number
+      const lines = wrapText(ctx, text, W - 20)
+      const h = Math.max(50, lines.length * fs * 1.4 + 20)
+      this.set({ height: Math.round(h) })
+    } else {
+      const { width, height } = measureNoteSize(text, fs, fw, fs2)
+      this.set({ width, height })
+    }
+    this._clampTail()
+    this.setCoords()
+    this.dirty = true
+  },
+
+  _clampTail() {
+    const hw = ((this.width  as number) || 180) / 2
+    const hh = ((this.height as number) ||  80) / 2
+    const MARGIN = 20
+    let tx = this.tailX as number, ty = this.tailY as number
+    const ax = Math.abs(tx), ay = Math.abs(ty)
+    const exitsTB = ax === 0 || (ay > 0 && ay / ax >= hh / hw)
+    if (exitsTB) {
+      const minDist = hh + MARGIN
+      if (Math.abs(ty) < minDist) ty = ty >= 0 ? minDist : -minDist
+    } else {
+      const minDist = hw + MARGIN
+      if (Math.abs(tx) < minDist) tx = tx >= 0 ? minDist : -minDist
+    }
+    this.tailX = tx
+    this.tailY = ty
   },
 
   _setupControls() {
-    this.setControlsVisibility({ mt: false, mb: false, ml: false, mr: false })
+    // mt/mb hidden — height is driven by content + fontSize
+    this.setControlsVisibility({ mt: false, mb: false })
     const self = this
     this.controls.tail = new fabric.Control({
       x:           0,
@@ -165,8 +227,6 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
         fabricObject: fabric.Object,
       ) {
         const nb = fabricObject as any
-        // finalMatrix encodes rotation+translation+viewport but NOT scale.
-        // Scale lives in dim, so we pre-multiply tailX/tailY by scaleX/scaleY.
         return fabric.util.transformPoint(
           new fabric.Point(nb.tailX * (nb.scaleX || 1), nb.tailY * (nb.scaleY || 1)),
           finalMatrix,
@@ -184,22 +244,9 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
         const inv     = fabric.util.invertTransform(matrix)
         const local   = fabric.util.transformPoint(new fabric.Point(pointer.x, pointer.y), inv)
 
-        // Clamp tail outside the body rect so it can't be dragged inward.
-        const hw = ((nb.width  || 180) / 2)
-        const hh = ((nb.height ||  80) / 2)
-        const MARGIN = 20
-        let tx = local.x, ty = local.y
-        const ax = Math.abs(tx), ay = Math.abs(ty)
-        const exitsTB = ax === 0 || (ay > 0 && ay / ax >= hh / hw)
-        if (exitsTB) {
-          const minDist = hh + MARGIN
-          if (Math.abs(ty) < minDist) ty = ty >= 0 ? minDist : -minDist
-        } else {
-          const minDist = hw + MARGIN
-          if (Math.abs(tx) < minDist) tx = tx >= 0 ? minDist : -minDist
-        }
-        nb.tailX  = tx
-        nb.tailY  = ty
+        nb.tailX  = local.x
+        nb.tailY  = local.y
+        nb._clampTail()
         nb.dirty  = true
         canvas.requestRenderAll()
         return true
@@ -265,6 +312,8 @@ NoteBubbleClass.fromObject = (obj: Record<string, unknown>, cb: (o: unknown) => 
 
 // ── toolbar definitions ───────────────────────────────────────────────────────
 
+const FONT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48]
+
 const TOOLS: { id: DrawTool; label: string; Icon: React.ComponentType<{ size?: number | string }> }[] = [
   { id: 'select',  label: 'Select (V)',    Icon: MousePointer2 },
 
@@ -318,12 +367,14 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
     const [noteTextColor, setNoteTextColor] = useState('#1a1a1a')
     const [noteBold,      setNoteBold]      = useState(false)
     const [noteItalic,    setNoteItalic]    = useState(false)
+    const [noteFontSize,   setNoteFontSize]   = useState(13)
     const [canUndo,       setCanUndo]       = useState(false)
     const [canRedo,       setCanRedo]       = useState(false)
     const [selectedIsNote, setSelectedIsNote] = useState(false)
     const [selectedObjType, setSelectedObjType] = useState<string | null>(null)
     const [selectedFill,    setSelectedFill]    = useState<string | null>(null)
     const [selectedStroke,  setSelectedStroke]  = useState<string | null>(null)
+    const [selectedFontSize, setSelectedFontSize] = useState<number | null>(null)
 
     // note text editing overlay
     const [editingNote, setEditingNote] = useState<{
@@ -337,6 +388,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
     const noteTextRef     = useRef('#1a1a1a')
     const noteBoldRef     = useRef(false)
     const noteItalicRef   = useRef(false)
+    const noteFontSizeRef = useRef(13)
     const isDrawing       = useRef(false)
 
     const startPt         = useRef({ x: 0, y: 0 })
@@ -352,8 +404,9 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
     useEffect(() => { colorRef.current      = color         }, [color])
     useEffect(() => { noteBgRef.current     = noteBgColor   }, [noteBgColor])
     useEffect(() => { noteTextRef.current   = noteTextColor }, [noteTextColor])
-    useEffect(() => { noteBoldRef.current   = noteBold      }, [noteBold])
-    useEffect(() => { noteItalicRef.current = noteItalic    }, [noteItalic])
+    useEffect(() => { noteBoldRef.current     = noteBold        }, [noteBold])
+    useEffect(() => { noteItalicRef.current   = noteItalic      }, [noteItalic])
+    useEffect(() => { noteFontSizeRef.current = noteFontSize    }, [noteFontSize])
 
     // ── history helpers ──────────────────────────────────────────────────────
 
@@ -440,6 +493,9 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       const obj    = canvas?.getActiveObject() as any
       if (!canvas || obj?.type !== 'NoteBubble') return
       Object.assign(obj, props)
+      if ('noteFontWeight' in props || 'noteFontStyle' in props || 'noteFontSize' in props) {
+        obj._recalcSize()
+      }
       obj.dirty = true
       canvas.renderAll()
       saveSnapshot(canvas)
@@ -517,6 +573,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
         selection: true,
         backgroundColor: '#1a243e',
         preserveObjectStacking: true,
+        uniformScaling: false, // free resize by default, shift to lock aspect ratio
       })
       fabricRef.current = canvas
       historyRef.current      = ['[]']
@@ -554,7 +611,33 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
 
       canvas.on('object:added',    () => saveSnapshot(canvas))
       canvas.on('object:removed',  () => saveSnapshot(canvas))
-      canvas.on('object:modified', () => saveSnapshot(canvas))
+      canvas.on('object:modified', (e) => {
+        const obj = e.target as any
+
+        // absorb scale into dimensions/fontSize — avoids distorting text/bubbles
+        if (obj?.type === 'NoteBubble' && (obj.scaleX !== 1 || obj.scaleY !== 1)) {
+          const sx = obj.scaleX!, sy = obj.scaleY!
+          obj.set({ width: Math.max(80, Math.min(600, Math.round((obj.width || 180) * sx))), scaleX: 1, scaleY: 1 })
+          if (sy !== 1) obj.noteFontSize = Math.max(8, Math.min(72, Math.round((obj.noteFontSize || 13) * sy)))
+          obj._recalcSize(true)
+        }
+        if (obj?.type === 'i-text' && (obj.scaleX !== 1 || obj.scaleY !== 1)) {
+          const avgScale = (Math.abs(obj.scaleX!) + Math.abs(obj.scaleY!)) / 2
+          obj.set({ fontSize: Math.max(8, Math.min(72, Math.round((obj.fontSize || 18) * avgScale))), scaleX: 1, scaleY: 1 })
+        }
+
+        // re-sync toolbar
+        if (obj?.type === 'NoteBubble') {
+          const active = canvas.getActiveObject() as any
+          if (active?.type === 'NoteBubble') setSelectedFontSize(obj.noteFontSize)
+        }
+        if (obj?.type === 'i-text') {
+          const active = canvas.getActiveObject() as any
+          if (active?.type === 'i-text') setSelectedFontSize(obj.fontSize)
+        }
+
+        saveSnapshot(canvas)
+      })
 
       // track selection for UI state
       const clearSelState = () => {
@@ -562,6 +645,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
         setSelectedObjType(null)
         setSelectedFill(null)
         setSelectedStroke(null)
+        setSelectedFontSize(null)
       }
       const onSel = () => {
         const obj = canvas.getActiveObject() as any
@@ -576,13 +660,17 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
           setNoteItalic(italic); noteItalicRef.current = italic
           setNoteBgColor(obj.noteBgColor    || '#fde68a')
           setNoteTextColor(obj.noteTextColor || '#1a1a1a')
+          setNoteFontSize(obj.noteFontSize ?? 13)
+          setSelectedFontSize(obj.noteFontSize ?? 13)
         } else if (obj.type !== 'image') {
           setSelectedObjType(obj.type)
           const rawFill = obj.fill
           setSelectedFill(rawFill && rawFill !== 'transparent' && rawFill !== 'rgba(0,0,0,0.01)' ? rawFill : null)
           setSelectedStroke(obj.stroke || null)
+          if (obj.type === 'i-text') setSelectedFontSize(obj.fontSize ?? 18)
+          else setSelectedFontSize(null)
         } else {
-          setSelectedObjType(null); setSelectedFill(null); setSelectedStroke(null)
+          setSelectedObjType(null); setSelectedFill(null); setSelectedStroke(null); setSelectedFontSize(null)
         }
       }
       canvas.on('selection:created', onSel)
@@ -667,6 +755,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
             noteTextColor:  noteTextRef.current,
             noteFontWeight: noteBoldRef.current   ? 'bold'   : 'normal',
             noteFontStyle:  noteItalicRef.current ? 'italic' : 'normal',
+            noteFontSize:   noteFontSizeRef.current,
             tailX:          0,
             tailY:          70,
           })
@@ -808,6 +897,23 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
       saveSnapshot(canvas)
     }
 
+    const applyFontSize = (size: number) => {
+      const canvas = fabricRef.current
+      const obj = canvas?.getActiveObject() as any
+      if (!canvas || !obj) return
+      if (obj.type === 'i-text') {
+        obj.set({ fontSize: size })
+        obj.dirty = true
+        setSelectedFontSize(size)
+      } else if (obj.type === 'NoteBubble') {
+        obj.noteFontSize = size
+        obj._recalcSize()
+        setSelectedFontSize(size)
+      }
+      canvas.renderAll()
+      saveSnapshot(canvas)
+    }
+
     // ── clear / reset ─────────────────────────────────────────────────────────
 
     const clear = () => {
@@ -928,6 +1034,24 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 </label>
               )}
 
+              {/* text font size */}
+              {selectedObjType === 'i-text' && selectedFontSize !== null && (
+                <select
+                  title="Font size"
+                  value={selectedFontSize}
+                  onChange={e => applyFontSize(Number(e.target.value))}
+                  style={{
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 6, color: 'white', fontSize: 12, padding: '2px 4px', cursor: 'pointer',
+                    height: 26,
+                  }}
+                >
+                  {FONT_SIZES.map(s => (
+                    <option key={s} value={s} style={{ background: '#1A243E' }}>{s}px</option>
+                  ))}
+                </select>
+              )}
+
               {/* stroke — rect, ellipse, arrow (path), line */}
               {(selectedObjType === 'rect' || selectedObjType === 'ellipse' || selectedObjType === 'path' || selectedObjType === 'line') && (
                 <label title="Stroke color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
@@ -965,6 +1089,28 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 }}
                 style={{ ...btn(noteItalic), fontStyle: 'italic', fontSize: 13, fontFamily: 'serif' }}
               >I</button>
+
+              {/* note font size */}
+              {(tool === 'note' || selectedIsNote) && (
+                <select
+                  title="Font size"
+                  value={selectedIsNote ? selectedFontSize! : noteFontSize}
+                  onChange={e => {
+                    const size = Number(e.target.value)
+                    if (selectedIsNote) applyFontSize(size)
+                    else { setNoteFontSize(size); noteFontSizeRef.current = size }
+                  }}
+                  style={{
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 6, color: 'white', fontSize: 12, padding: '2px 4px', cursor: 'pointer',
+                    height: 26,
+                  }}
+                >
+                  {FONT_SIZES.map(s => (
+                    <option key={s} value={s} style={{ background: '#1A243E' }}>{s}px</option>
+                  ))}
+                </select>
+              )}
 
               <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
 
@@ -1009,7 +1155,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 if (canvas) {
                   editingNote.obj.noteText  = e.target.value || 'Add note...'
                   editingNote.obj.isEditing = false
-                  editingNote.obj.dirty     = true
+                  editingNote.obj._recalcSize()
                   canvas.renderAll()
                   saveSnapshot(canvas)
                 }
