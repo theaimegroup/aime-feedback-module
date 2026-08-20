@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnnotationCanvas, type AnnotationCanvasHandle } from './AnnotationCanvas'
 import { submitFeedback } from './api'
@@ -288,8 +288,19 @@ const RESTORE_HINT_SECONDS = 7
 const FAB_LS_KEY = '__aime_fb_pos__'
 const FAB_HIDDEN_LS_KEY = '__aime_fb_hidden__'
 
+/** Placeholder used until mount. Never painted: the FAB renders nothing until then. */
+const FAB_SSR_POS = { x: FAB_MARGIN, y: 400 }
+
+/**
+ * Layout effects run before the browser paints, so the FAB appears in the first
+ * painted frame rather than popping in after it — which matters for the Vite
+ * apps that inject this widget, where there is no server pass to wait for.
+ * React warns about `useLayoutEffect` during SSR, so fall back there.
+ */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
+
 function getDefaultFabPos() {
-  if (typeof window === 'undefined') return { x: FAB_MARGIN, y: 400 }
+  if (typeof window === 'undefined') return FAB_SSR_POS
   return { x: FAB_MARGIN, y: window.innerHeight - FAB_SIZE - FAB_MARGIN }
 }
 
@@ -364,9 +375,12 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 ) {
   const [open, setOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [fabHidden, setFabHidden] = useState<boolean>(() => {
-    try { return localStorage.getItem(FAB_HIDDEN_LS_KEY) === '1' } catch { return false }
-  })
+  // Hidden state and position both come from localStorage and the viewport, and
+  // neither exists on a server render. Start from static values so a server-
+  // rendered host (Next.js) hydrates against markup it can reproduce, and apply
+  // the real ones on mount — see the reconciliation effect below.
+  const [mounted, setMounted] = useState(false)
+  const [fabHidden, setFabHidden] = useState(false)
   // Brief hint shown when the FAB is hidden, telling the user how to bring it back.
   const [restoreHint, setRestoreHint] = useState(false)
   const [restoreCountdown, setRestoreCountdown] = useState(RESTORE_HINT_SECONDS)
@@ -381,16 +395,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   const canvasRef = useRef<AnnotationCanvasHandle>(null)
   const fabDivRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ px: number; py: number; fx: number; fy: number; moved: boolean; shift: boolean } | null>(null)
-  const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
-    try {
-      const saved = localStorage.getItem(FAB_LS_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) return parsed
-      }
-    } catch {}
-    return getDefaultFabPos()
-  })
+  const [fabPos, setFabPos] = useState<{ x: number; y: number }>(FAB_SSR_POS)
 
   // Disabled when a required credential is missing or still a placeholder.
   // Null-safe: a generated app may pass `undefined` from an unset env var, and
@@ -524,18 +529,30 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     return () => window.removeEventListener('keydown', handler)
   }, [open, openWidget, openWidgetDirect, showFab, toggleFabHidden])
 
-  // First-paint reconciliation: the useState initializer read whatever was in
-  // localStorage (or the default) without knowing the current viewport. If the
-  // cached coords are off-screen for today's viewport (smaller monitor, rotated
-  // device, different window size), the FAB would render invisible. Snap to
-  // the nearest corner of the CURRENT viewport as soon as we mount.
-  useEffect(() => {
-    setFabPos((prev) => {
-      const snapped = snapToCorner(prev)
-      if (snapped.x === prev.x && snapped.y === prev.y) return prev // no-op
+  // First-paint reconciliation. Reads the browser-only state that render cannot
+  // touch: whether the user hid the FAB, and where they last left it. Cached
+  // coords may be off-screen for today's viewport (smaller monitor, rotated
+  // device, different window size), so snap to the nearest corner of the CURRENT
+  // one. `mounted` gates the FAB until this has run, so it never paints at the
+  // placeholder position and never flashes for a user who hid it.
+  useIsomorphicLayoutEffect(() => {
+    try { if (localStorage.getItem(FAB_HIDDEN_LS_KEY) === '1') setFabHidden(true) } catch {}
+
+    let start = getDefaultFabPos()
+    try {
+      const saved = localStorage.getItem(FAB_LS_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) start = parsed
+      }
+    } catch {}
+
+    const snapped = snapToCorner(start)
+    if (snapped.x !== start.x || snapped.y !== start.y) {
       try { localStorage.setItem(FAB_LS_KEY, JSON.stringify(snapped)) } catch {}
-      return snapped
-    })
+    }
+    setFabPos(snapped)
+    setMounted(true)
   }, []) // run once on mount
 
   useEffect(() => {
@@ -681,7 +698,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   return (
     <>
       <style>{`@keyframes aime-spin { to { transform: rotate(360deg) } } @keyframes aime-fb-hint-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }`}</style>
-      {showFab && !fabHidden && (
+      {showFab && mounted && !fabHidden && (
       <div
         id="__aime-fb__"
         ref={fabDivRef}
