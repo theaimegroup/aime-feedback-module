@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-08-20
+
+### Fixed
+- **Hydration mismatch in server-rendered hosts.** The FAB's hidden state and position were read from `localStorage` and `window.innerHeight` inside `useState` initialisers, so a Next.js server render placed the button at a 768px-viewport fallback and the client disagreed on `top`. Both now start from static values and are applied in the existing mount effect, which also gates the FAB so it never paints at the placeholder position or flashes for a user who hid it. Hosts no longer need to load the provider with `ssr: false` to avoid the console error.
+
+  That effect now runs as a layout effect in the browser (falling back to `useEffect` on the server, which React requires), so the FAB is still present in the first painted frame. Client-only hosts, including the Vite apps this widget is injected into, see no pop-in.
+
+  No API change: same props, same exports, same `localStorage` keys and formats. An existing saved position or hidden FAB carries over untouched.
+
 ## [0.3.5] - 2026-07-10
 
 ### Added
