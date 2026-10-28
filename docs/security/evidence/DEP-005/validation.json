@@ -1,0 +1,178 @@
+{
+  "repo": "aime-feedback-module",
+  "before_head": "3e6323088e21a9e433b15cf1c60edbc93c84808a",
+  "commands": [
+    {
+      "label": "baseline-install",
+      "command": [
+        "npm",
+        "ci",
+        "--no-audit",
+        "--no-fund",
+        "--registry=https://registry.npmjs.org",
+        "--fetch-retries=1",
+        "--fetch-timeout=20000"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "native-canvas",
+      "command": [
+        "node",
+        "-e",
+        "const assert=require('node:assert/strict');const{createCanvas}=require('canvas');const c=createCanvas(4,4);c.getContext('2d').fillRect(0,0,4,4);assert.equal(c.toBuffer('image/png').subarray(1,4).toString(),'PNG');console.log('Native canvas',require('canvas/package.json').version,'PNG OK')"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "resolve",
+      "command": [
+        "npm",
+        "install",
+        "--package-lock-only",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--registry=https://registry.npmjs.org",
+        "--fetch-retries=0",
+        "--fetch-timeout=20000"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "install",
+      "command": [
+        "npm",
+        "ci",
+        "--no-audit",
+        "--no-fund",
+        "--registry=https://registry.npmjs.org",
+        "--fetch-retries=1",
+        "--fetch-timeout=20000"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "types",
+      "command": [
+        "./node_modules/.bin/tsc",
+        "--noEmit"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "focused",
+      "command": [
+        "npm",
+        "run",
+        "test:security:fabric"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "peers",
+      "command": [
+        "npm",
+        "ls",
+        "--all"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "audit-full",
+      "command": [
+        "npm",
+        "audit",
+        "--package-lock-only",
+        "--json",
+        "--ignore-scripts",
+        "--registry=https://registry.npmjs.org",
+        "--fetch-retries=0",
+        "--fetch-timeout=20000"
+      ],
+      "exit": 1
+    },
+    {
+      "label": "audit-production",
+      "command": [
+        "npm",
+        "audit",
+        "--package-lock-only",
+        "--json",
+        "--ignore-scripts",
+        "--registry=https://registry.npmjs.org",
+        "--fetch-retries=0",
+        "--fetch-timeout=20000",
+        "--omit=dev"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "pack",
+      "command": [
+        "npm",
+        "pack",
+        "--json",
+        "--pack-destination",
+        "/private/tmp/aime-security-execution/DEP-005"
+      ],
+      "exit": 0
+    }
+  ],
+  "audit-full": {
+    "info": 0,
+    "low": 1,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 1
+  },
+  "audit-production": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "hashes": {
+    "package.json": "11b124e2f0db8259d8b43936ab9973a273d96b10d4199d2a6657267212a0bb97",
+    "package-lock.json": "3fec848de11ca598ec633606baec6734aebded7a0eaf14849b90a0e07532ed17"
+  },
+  "manifest_lock_unchanged": true,
+  "artifact": {
+    "name": "@aime-platform/aime-feedback-module",
+    "version": "0.3.6",
+    "fabric": "7.4.0",
+    "packed_bytes": 88873,
+    "sha256": "783226c8b163409ac58a36a98aee85430d622fe5580a325b04ec296a7ac56848",
+    "integrity": "sha512-3yAAdsBSUy0eENh8FaVgHoX8nJr7TiY3PQZxBuFHTYtXJO2V7o3xYvz4y92HFs3udeFphLQwLU9dBnjNDDAS6A==",
+    "files": {
+      "README.md": "ea08149f0b1f74b4e9ba3cb0bea1f005d46cb7a1f6222cd660f50b385e9f3564",
+      "dist/index.d.mts": "f5aeed9db6d3bf2944620f0ed90cfdb65d19049037165a8a585f90fbefcbd5b2",
+      "dist/index.d.ts": "f5aeed9db6d3bf2944620f0ed90cfdb65d19049037165a8a585f90fbefcbd5b2",
+      "dist/index.js": "fa032518aaf35955c4e91dde4b34301fbcb4306b4c0e11fb333f9bfb651f7505",
+      "dist/index.mjs": "e1691d2bf627ce91dcbfb2b725031b16ce27a3cd353431f5335160aeaf56749b",
+      "package.json": "11b124e2f0db8259d8b43936ab9973a273d96b10d4199d2a6657267212a0bb97"
+    },
+    "publication": false
+  },
+  "release_gates": [
+    "Linux native/deployment and authenticated host flows/cross-browser acceptance pending; no publication performed"
+  ],
+  "manifest_lock_sha256": {
+    "package.json": "11b124e2f0db8259d8b43936ab9973a273d96b10d4199d2a6657267212a0bb97",
+    "package-lock.json": "3fec848de11ca598ec633606baec6734aebded7a0eaf14849b90a0e07532ed17"
+  },
+  "node": "v22.19.0",
+  "npm": "10.9.3"
+}

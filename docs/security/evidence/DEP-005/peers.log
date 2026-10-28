@@ -1,0 +1,234 @@
+@aime-platform/aime-feedback-module@0.3.6 /private/tmp/aime-security-execution/DEP-005/aime-feedback-module-61yl1ezk
+├─┬ @types/react-dom@18.3.7
+│ └── @types/react@18.3.28 deduped
+├─┬ @types/react@18.3.28
+│ ├── @types/prop-types@15.7.15
+│ └── csstype@3.2.3
+├─┬ esbuild@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/aix-ppc64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/android-arm@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/android-arm64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/android-x64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/darwin-arm64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/darwin-x64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/freebsd-arm64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/freebsd-x64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-arm@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-arm64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-ia32@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-loong64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-mips64el@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-ppc64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-riscv64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-s390x@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/linux-x64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/netbsd-arm64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/netbsd-x64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/openbsd-arm64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/openbsd-x64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/openharmony-arm64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/sunos-x64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/win32-arm64@0.27.7
+│ ├── UNMET OPTIONAL DEPENDENCY @esbuild/win32-ia32@0.27.7
+│ └── UNMET OPTIONAL DEPENDENCY @esbuild/win32-x64@0.27.7
+├─┬ fabric@7.4.0
+│ ├─┬ canvas@3.2.3
+│ │ ├── node-addon-api@7.1.1
+│ │ └─┬ prebuild-install@7.1.3
+│ │   ├── detect-libc@2.1.2
+│ │   ├── expand-template@2.0.3
+│ │   ├── github-from-package@0.0.0
+│ │   ├── minimist@1.2.8
+│ │   ├── mkdirp-classic@0.5.3
+│ │   ├── napi-build-utils@2.0.0
+│ │   ├─┬ node-abi@3.101.0
+│ │   │ └── semver@7.8.5
+│ │   ├─┬ pump@3.0.4
+│ │   │ ├─┬ end-of-stream@1.4.5
+│ │   │ │ └── once@1.4.0 deduped
+│ │   │ └─┬ once@1.4.0
+│ │   │   └── wrappy@1.0.2
+│ │   ├─┬ rc@1.2.8
+│ │   │ ├── deep-extend@0.6.0
+│ │   │ ├── ini@1.3.8
+│ │   │ ├── minimist@1.2.8 deduped
+│ │   │ └── strip-json-comments@2.0.1
+│ │   ├─┬ simple-get@4.0.1
+│ │   │ ├─┬ decompress-response@6.0.0
+│ │   │ │ └── mimic-response@3.1.0
+│ │   │ ├── once@1.4.0 deduped
+│ │   │ └── simple-concat@1.0.1
+│ │   ├─┬ tar-fs@2.1.5
+│ │   │ ├── chownr@1.1.4
+│ │   │ ├── mkdirp-classic@0.5.3 deduped
+│ │   │ ├── pump@3.0.4 deduped
+│ │   │ └─┬ tar-stream@2.2.0
+│ │   │   ├─┬ bl@4.1.0
+│ │   │   │ ├─┬ buffer@5.7.1
+│ │   │   │ │ ├── base64-js@1.5.1
+│ │   │   │ │ └── ieee754@1.2.1
+│ │   │   │ ├── inherits@2.0.4 deduped
+│ │   │   │ └── readable-stream@3.6.2 deduped
+│ │   │   ├── end-of-stream@1.4.5 deduped
+│ │   │   ├── fs-constants@1.0.0
+│ │   │   ├── inherits@2.0.4
+│ │   │   └─┬ readable-stream@3.6.2
+│ │   │     ├── inherits@2.0.4 deduped
+│ │   │     ├─┬ string_decoder@1.3.0
+│ │   │     │ └── safe-buffer@5.2.1 deduped
+│ │   │     └── util-deprecate@1.0.2
+│ │   └─┬ tunnel-agent@0.6.0
+│ │     └── safe-buffer@5.2.1
+│ └─┬ jsdom@26.1.0
+│   ├── canvas@3.2.3 deduped
+│   ├─┬ cssstyle@4.6.0
+│   │ ├─┬ @asamuzakjp/css-color@3.2.0
+│   │ │ ├─┬ @csstools/css-calc@2.1.4
+│   │ │ │ ├── @csstools/css-parser-algorithms@3.0.5 deduped
+│   │ │ │ └── @csstools/css-tokenizer@3.0.4 deduped
+│   │ │ ├─┬ @csstools/css-color-parser@3.1.0
+│   │ │ │ ├── @csstools/color-helpers@5.1.0
+│   │ │ │ ├── @csstools/css-calc@2.1.4 deduped
+│   │ │ │ ├── @csstools/css-parser-algorithms@3.0.5 deduped
+│   │ │ │ └── @csstools/css-tokenizer@3.0.4 deduped
+│   │ │ ├─┬ @csstools/css-parser-algorithms@3.0.5
+│   │ │ │ └── @csstools/css-tokenizer@3.0.4 deduped
+│   │ │ ├── @csstools/css-tokenizer@3.0.4
+│   │ │ └── lru-cache@10.4.3
+│   │ └── rrweb-cssom@0.8.0 deduped
+│   ├─┬ data-urls@5.0.0
+│   │ ├── whatwg-mimetype@4.0.0 deduped
+│   │ └── whatwg-url@14.2.0 deduped
+│   ├── decimal.js@10.6.0
+│   ├─┬ html-encoding-sniffer@4.0.0
+│   │ └── whatwg-encoding@3.1.1 deduped
+│   ├─┬ http-proxy-agent@7.0.2
+│   │ ├── agent-base@7.1.4
+│   │ └── debug@4.4.3 deduped
+│   ├─┬ https-proxy-agent@7.0.6
+│   │ ├── agent-base@7.1.4 deduped
+│   │ └── debug@4.4.3 deduped
+│   ├── is-potential-custom-element-name@1.0.1
+│   ├── nwsapi@2.2.28
+│   ├─┬ parse5@7.3.0
+│   │ └── entities@6.0.1
+│   ├── rrweb-cssom@0.8.0
+│   ├─┬ saxes@6.0.0
+│   │ └── xmlchars@2.2.0
+│   ├── symbol-tree@3.2.4
+│   ├─┬ tough-cookie@5.1.2
+│   │ └─┬ tldts@6.1.86
+│   │   └── tldts-core@6.1.86
+│   ├─┬ w3c-xmlserializer@5.0.0
+│   │ └── xml-name-validator@5.0.0 deduped
+│   ├── webidl-conversions@7.0.0
+│   ├─┬ whatwg-encoding@3.1.1
+│   │ └─┬ iconv-lite@0.6.3
+│   │   └── safer-buffer@2.1.2
+│   ├── whatwg-mimetype@4.0.0
+│   ├─┬ whatwg-url@14.2.0
+│   │ ├─┬ tr46@5.1.1
+│   │ │ └── punycode@2.3.1
+│   │ └── webidl-conversions@7.0.0 deduped
+│   ├─┬ ws@8.22.0
+│   │ ├── UNMET OPTIONAL DEPENDENCY bufferutil@^4.0.1
+│   │ └── UNMET OPTIONAL DEPENDENCY utf-8-validate@>=5.0.2
+│   └── xml-name-validator@5.0.0
+├─┬ lucide-react@0.511.0
+│ └── react@19.2.5 deduped
+├── modern-screenshot@4.7.0
+├─┬ playwright@1.64.1
+│ └── playwright-core@1.64.1
+├─┬ react-dom@19.2.5
+│ ├── react@19.2.5 deduped
+│ └── scheduler@0.27.0
+├── react@19.2.5
+├─┬ tsup@8.5.1
+│ ├── UNMET OPTIONAL DEPENDENCY @microsoft/api-extractor@^7.36.0
+│ ├── UNMET OPTIONAL DEPENDENCY @swc/core@^1
+│ ├─┬ bundle-require@5.1.0
+│ │ ├── esbuild@0.27.7 deduped
+│ │ └── load-tsconfig@0.2.5
+│ ├── cac@6.7.14
+│ ├─┬ chokidar@4.0.3
+│ │ └── readdirp@4.1.2
+│ ├── consola@3.4.2
+│ ├─┬ debug@4.4.3
+│ │ └── ms@2.1.3
+│ ├── esbuild@0.27.7 deduped
+│ ├─┬ fix-dts-default-cjs-exports@1.0.1
+│ │ ├─┬ magic-string@0.30.21
+│ │ │ └── @jridgewell/sourcemap-codec@1.5.5
+│ │ ├─┬ mlly@1.8.2
+│ │ │ ├── acorn@8.16.0
+│ │ │ ├── pathe@2.0.3
+│ │ │ ├─┬ pkg-types@1.3.1
+│ │ │ │ ├── confbox@0.1.8
+│ │ │ │ ├── mlly@1.8.2 deduped
+│ │ │ │ └── pathe@2.0.3 deduped
+│ │ │ └── ufo@1.6.4
+│ │ └── rollup@4.60.3 deduped
+│ ├── joycon@3.1.1
+│ ├── picocolors@1.1.1
+│ ├─┬ postcss-load-config@6.0.1
+│ │ ├── UNMET OPTIONAL DEPENDENCY jiti@>=1.21.0
+│ │ ├── lilconfig@3.1.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY postcss@>=8.0.9
+│ │ ├── UNMET OPTIONAL DEPENDENCY tsx@^4.8.1
+│ │ └── UNMET OPTIONAL DEPENDENCY yaml@^2.4.2
+│ ├── UNMET OPTIONAL DEPENDENCY postcss@^8.4.12
+│ ├── resolve-from@5.0.0
+│ ├─┬ rollup@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-android-arm-eabi@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-android-arm64@4.60.3
+│ │ ├── @rollup/rollup-darwin-arm64@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-darwin-x64@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-freebsd-arm64@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-freebsd-x64@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-arm-gnueabihf@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-arm-musleabihf@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-arm64-gnu@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-arm64-musl@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-loong64-gnu@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-loong64-musl@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-ppc64-gnu@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-ppc64-musl@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-riscv64-gnu@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-riscv64-musl@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-s390x-gnu@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-x64-gnu@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-linux-x64-musl@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-openbsd-x64@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-openharmony-arm64@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-win32-arm64-msvc@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-win32-ia32-msvc@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-win32-x64-gnu@4.60.3
+│ │ ├── UNMET OPTIONAL DEPENDENCY @rollup/rollup-win32-x64-msvc@4.60.3
+│ │ ├── @types/estree@1.0.8
+│ │ └── fsevents@2.3.3
+│ ├── source-map@0.7.6
+│ ├─┬ sucrase@3.35.1
+│ │ ├─┬ @jridgewell/gen-mapping@0.3.13
+│ │ │ ├── @jridgewell/sourcemap-codec@1.5.5 deduped
+│ │ │ └─┬ @jridgewell/trace-mapping@0.3.31
+│ │ │   ├── @jridgewell/resolve-uri@3.1.2
+│ │ │   └── @jridgewell/sourcemap-codec@1.5.5 deduped
+│ │ ├── commander@4.1.1
+│ │ ├── lines-and-columns@1.2.4
+│ │ ├─┬ mz@2.7.0
+│ │ │ ├── any-promise@1.3.0
+│ │ │ ├── object-assign@4.1.1
+│ │ │ └─┬ thenify-all@1.6.0
+│ │ │   └─┬ thenify@3.3.1
+│ │ │     └── any-promise@1.3.0 deduped
+│ │ ├── pirates@4.0.7
+│ │ ├── tinyglobby@0.2.16 deduped
+│ │ └── ts-interface-checker@0.1.13
+│ ├── tinyexec@0.3.2
+│ ├─┬ tinyglobby@0.2.16
+│ │ ├─┬ fdir@6.5.0
+│ │ │ └── picomatch@4.0.4 deduped
+│ │ └── picomatch@4.0.4
+│ ├── tree-kill@1.2.2
+│ └── typescript@5.9.3 deduped
+└── typescript@5.9.3

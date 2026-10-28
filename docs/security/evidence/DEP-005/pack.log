@@ -1,0 +1,46 @@
+[
+  {
+    "id": "@aime-platform/aime-feedback-module@0.3.6",
+    "name": "@aime-platform/aime-feedback-module",
+    "version": "0.3.6",
+    "size": 88873,
+    "unpackedSize": 389082,
+    "shasum": "01a1f906d528b1a0c506700bb447c202ae902f09",
+    "integrity": "sha512-3yAAdsBSUy0eENh8FaVgHoX8nJr7TiY3PQZxBuFHTYtXJO2V7o3xYvz4y92HFs3udeFphLQwLU9dBnjNDDAS6A==",
+    "filename": "aime-platform-aime-feedback-module-0.3.6.tgz",
+    "files": [
+      {
+        "path": "README.md",
+        "size": 9123,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.mts",
+        "size": 3522,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.ts",
+        "size": 3522,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js",
+        "size": 189868,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.mjs",
+        "size": 181894,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1153,
+        "mode": 420
+      }
+    ],
+    "entryCount": 6,
+    "bundled": []
+  }
+]
