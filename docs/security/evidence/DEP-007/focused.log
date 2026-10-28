@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: node_modules/form-data: ordinary file/text upload round-trips through a real local HTTP receiver
+ok 1 - node_modules/form-data: ordinary file/text upload round-trips through a real local HTTP receiver
+  ---
+  duration_ms: 9.316375
+  type: 'test'
+  ...
+# Subtest: node_modules/form-data: hostile field metadata cannot inject a header or a form part
+ok 2 - node_modules/form-data: hostile field metadata cannot inject a header or a form part
+  ---
+  duration_ms: 2.175334
+  type: 'test'
+  ...
+# Subtest: node_modules/form-data: hostile filename remains one escaped filename
+ok 3 - node_modules/form-data: hostile filename remains one escaped filename
+  ---
+  duration_ms: 1.066958
+  type: 'test'
+  ...
+# Subtest: node_modules/form-data: quote-only field and filename metadata is escaped
+ok 4 - node_modules/form-data: quote-only field and filename metadata is escaped
+  ---
+  duration_ms: 0.888167
+  type: 'test'
+  ...
+# Subtest: node_modules/form-data: boundary generation delegates to crypto instead of Math.random
+ok 5 - node_modules/form-data: boundary generation delegates to crypto instead of Math.random
+  ---
+  duration_ms: 36.745209
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 100.745375
