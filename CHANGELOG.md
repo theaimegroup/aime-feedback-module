@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-13
+
 ### Added
 - **Multiple images per feedback item.** The widget accepts up to five additional image attachments alongside the annotated screenshot. Each image is uploaded through files-ms and stored in the existing `images[]` array.
 - **Feedback ticket tracking.** Submission now returns the created feedback number and public status URL; the success state shows the ticket number and a direct link to the read-only status page.
