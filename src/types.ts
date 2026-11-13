@@ -45,6 +45,15 @@ export interface FeedbackPayload {
   submitted_by_email?: string
   notify_user_ids?: string[]
   teams_url?: string
+  /** Stable client-generated idempotency key for safe retries. */
+  client_submission_id?: string
+}
+
+export interface FeedbackSubmission {
+  id?: string
+  feedbackNumber?: number
+  status?: FeedbackStatus
+  statusUrl?: string
 }
 
 export interface FeedbackProviderProps {
