@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { AnnotationCanvas, type AnnotationCanvasHandle } from './AnnotationCanvas'
 import { submitFeedback } from './api'
 import { captureScreenshot } from './screenshot'
-import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackStatus, FeedbackType, FeedbackWidgetHandle, NotifyUser } from './types'
+import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackStatus, FeedbackSubmission, FeedbackType, FeedbackWidgetHandle, NotifyUser } from './types'
+import { deleteDraftScreenshot, getDraftScreenshot, saveDraftScreenshot } from './draftStorage'
 import { uploadImage } from './upload'
 import { AIME_LOGO_DATA_URL } from './logo'
 
@@ -62,6 +63,26 @@ const INITIAL_FORM: FormState = {
 }
 
 const MAX_NOTIFY_USERS = 5
+const MAX_EXTRA_IMAGES = 5
+
+interface ExtraImage {
+  file: File
+  preview: string
+}
+
+const DRAFT_PREFIX = 'aime-feedback-draft:'
+
+interface StoredDraft {
+  form: FormState
+  clientSubmissionId: string
+  savedAt: string
+  capturedMeta?: FeedbackMeta | null
+}
+
+const makeClientSubmissionId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
 function UserMultiSelect({ users, selected, onChange }: {
   users: NotifyUser[]
@@ -344,6 +365,7 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
           if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); add() }
         }}
         onBlur={add}
+        aria-label="Add tags"
         placeholder={tags.length === 0 ? 'Add tags…' : ''}
         style={{
           background: 'none', border: 'none', outline: 'none',
@@ -371,14 +393,31 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   const [restoreHint, setRestoreHint] = useState(false)
   const [restoreCountdown, setRestoreCountdown] = useState(RESTORE_HINT_SECONDS)
   const restoreHintTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [draftSavedHint, setDraftSavedHint] = useState(false)
+  const [draftSavedCountdown, setDraftSavedCountdown] = useState(6)
+  const draftSavedHintTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [screenshot, setScreenshot] = useState<string | null>(null)
+  const [extraImages, setExtraImages] = useState<ExtraImage[]>([])
+  const [dragActive, setDragActive] = useState(false)
+  const dragDepthRef = useRef(0)
   const [capturing, setCapturing] = useState(false)
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [capturedMeta, setCapturedMeta] = useState<FeedbackMeta | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [ticket, setTicket] = useState<FeedbackSubmission | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const submitControllerRef = useRef<AbortController | null>(null)
+  const [clientSubmissionId, setClientSubmissionId] = useState(makeClientSubmissionId)
+  const [draftRestored, setDraftRestored] = useState(false)
+  const [hasDraft, setHasDraft] = useState(false)
+  const draftLoadedRef = useRef(false)
+  const draftKey = projectId ? `${DRAFT_PREFIX}${projectId}` : ''
   const canvasRef = useRef<AnnotationCanvasHandle>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const attachInputRef = useRef<HTMLInputElement>(null)
+  const extraImagesRef = useRef<ExtraImage[]>([])
   const fabDivRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ px: number; py: number; fx: number; fy: number; moved: boolean; shift: boolean } | null>(null)
   const [fabPos, setFabPos] = useState<{ x: number; y: number }>(() => {
@@ -391,6 +430,14 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     } catch {}
     return getDefaultFabPos()
   })
+
+  useEffect(() => {
+    extraImagesRef.current = extraImages
+  }, [extraImages])
+
+  useEffect(() => () => {
+    extraImagesRef.current.forEach((image) => URL.revokeObjectURL(image.preview))
+  }, [])
 
   // Disabled when a required credential is missing or still a placeholder.
   // Null-safe: a generated app may pass `undefined` from an unset env var, and
@@ -434,6 +481,29 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
   useEffect(() => () => { if (restoreHintTimer.current) clearInterval(restoreHintTimer.current) }, [])
 
+  const dismissDraftSavedHint = useCallback(() => {
+    if (draftSavedHintTimer.current) { clearInterval(draftSavedHintTimer.current); draftSavedHintTimer.current = null }
+    setDraftSavedHint(false)
+  }, [])
+
+  const showDraftSavedHint = useCallback(() => {
+    if (draftSavedHintTimer.current) clearInterval(draftSavedHintTimer.current)
+    setDraftSavedHint(true)
+    setDraftSavedCountdown(6)
+    draftSavedHintTimer.current = setInterval(() => {
+      setDraftSavedCountdown((count) => {
+        if (count <= 1) {
+          if (draftSavedHintTimer.current) { clearInterval(draftSavedHintTimer.current); draftSavedHintTimer.current = null }
+          setDraftSavedHint(false)
+          return 0
+        }
+        return count - 1
+      })
+    }, 1000)
+  }, [])
+
+  useEffect(() => () => { if (draftSavedHintTimer.current) clearInterval(draftSavedHintTimer.current) }, [])
+
   const hideFab = useCallback(() => {
     setMenuOpen(false)
     setFabHidden(true)
@@ -461,13 +531,162 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     })
   }, [userName, userEmail])
 
+  const loadDraft = useCallback(async (): Promise<boolean> => {
+    draftLoadedRef.current = true
+    if (!draftKey) return false
+    try {
+      const raw = localStorage.getItem(draftKey)
+      if (!raw) return false
+      const draft = JSON.parse(raw) as StoredDraft
+      if (!draft?.form || typeof draft.form !== 'object') return false
+      setForm({ ...INITIAL_FORM, ...draft.form })
+      setClientSubmissionId(draft.clientSubmissionId || makeClientSubmissionId())
+      setCapturedMeta(draft.capturedMeta ?? null)
+      setDraftRestored(true)
+      const savedScreenshot = await getDraftScreenshot(draftKey)
+      if (savedScreenshot) setScreenshot(savedScreenshot)
+      return true
+    } catch {
+      return false
+    }
+  }, [draftKey])
+
+  const seedFreshForm = useCallback(() => {
+    draftLoadedRef.current = true
+    seedForm()
+    setClientSubmissionId(makeClientSubmissionId())
+    setDraftRestored(false)
+  }, [seedForm])
+
+  const discardDraft = useCallback(() => {
+    if (draftKey) {
+      try { localStorage.removeItem(draftKey) } catch {}
+      void deleteDraftScreenshot(draftKey)
+    }
+    seedFreshForm()
+    setHasDraft(false)
+  }, [draftKey, seedFreshForm])
+
+  const clearDraft = useCallback(() => {
+    if (draftKey) {
+      try { localStorage.removeItem(draftKey) } catch {}
+      void deleteDraftScreenshot(draftKey)
+    }
+    setDraftRestored(false)
+    setHasDraft(false)
+  }, [draftKey])
+
+  useEffect(() => {
+    if (!draftKey) {
+      setHasDraft(false)
+      return
+    }
+    try { setHasDraft(!!localStorage.getItem(draftKey)) } catch { setHasDraft(false) }
+  }, [draftKey, open])
+
+  useEffect(() => {
+    if (!open || !draftLoadedRef.current || !draftKey || success) return
+    // Identity fields are prefilled by the host and must not recreate a draft
+    // after the user explicitly discards one.
+    const hasContent =
+      form.title.trim() ||
+      form.description.trim() ||
+      form.type ||
+      form.tags.length > 0
+    if (!hasContent) return
+    try {
+      const draft: StoredDraft = { form, clientSubmissionId, capturedMeta, savedAt: new Date().toISOString() }
+      localStorage.setItem(draftKey, JSON.stringify(draft))
+      setHasDraft(true)
+    } catch {
+      // Draft persistence is best-effort; submission must still work.
+    }
+  }, [form, clientSubmissionId, capturedMeta, draftKey, open, success])
+
+  useEffect(() => {
+    if (!open || !draftKey || success || draftRestored || screenshot) return
+    const hasContent = form.title.trim() || form.description.trim() || form.type
+    if (hasContent) void deleteDraftScreenshot(draftKey)
+  }, [draftKey, draftRestored, form.title, form.description, form.type, open, screenshot, success])
+
+  useEffect(() => {
+    if (!open || !draftKey || success || !screenshot) return
+    const hasContent = form.title.trim() || form.description.trim() || form.type
+    if (hasContent) void saveDraftScreenshot(draftKey, screenshot)
+  }, [draftKey, form.title, form.description, form.type, open, screenshot, success])
+
+  const clearExtraImages = useCallback(() => {
+    setExtraImages((images) => {
+      images.forEach((image) => URL.revokeObjectURL(image.preview))
+      return []
+    })
+  }, [])
+
+  const addExtraImages = useCallback((files: FileList | File[] | null) => {
+    if (!files?.length) return
+    const incoming = Array.from(files).filter((file) => file.type.startsWith('image/'))
+    setExtraImages((images) => {
+      const rooms = Math.max(0, MAX_EXTRA_IMAGES - images.length)
+      const added = incoming.slice(0, rooms).map((file) => ({ file, preview: URL.createObjectURL(file) }))
+      return [...images, ...added]
+    })
+  }, [])
+
+  const onImageDragEnter = useCallback((event: React.DragEvent) => {
+    if (!Array.from(event.dataTransfer.types).includes('Files')) return
+    event.preventDefault()
+    dragDepthRef.current += 1
+    setDragActive(true)
+  }, [])
+
+  const onImageDragOver = useCallback((event: React.DragEvent) => {
+    if (!Array.from(event.dataTransfer.types).includes('Files')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }, [])
+
+  const onImageDragLeave = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setDragActive(false)
+  }, [])
+
+  const onImageDrop = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setDragActive(false)
+    addExtraImages(event.dataTransfer.files)
+  }, [addExtraImages])
+
+  useEffect(() => {
+    if (!open) return
+    const onPaste = (event: ClipboardEvent) => {
+      const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'))
+      if (!files.length) return
+      event.preventDefault()
+      addExtraImages(files)
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [open, addExtraImages])
+
+  const removeExtraImage = useCallback((index: number) => {
+    setExtraImages((images) => {
+      const next = [...images]
+      const [removed] = next.splice(index, 1)
+      if (removed) URL.revokeObjectURL(removed.preview)
+      return next
+    })
+  }, [])
+
   const openWidgetDirect = useCallback(() => {
     if (capturing || open || isDisabled) return
     setMenuOpen(false)
     revealFab()
     setScreenshot(null)
+    clearExtraImages()
     setOpen(true)
-    seedForm()
+    seedFreshForm()
     const { browser, os } = parseBrowserOS(navigator.userAgent)
     setCapturedMeta({
       url: window.location.href,
@@ -478,7 +697,8 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     })
     setError(null)
     setSuccess(false)
-  }, [capturing, open, isDisabled, revealFab, seedForm])
+    setTicket(null)
+  }, [capturing, open, isDisabled, revealFab, seedFreshForm, clearExtraImages])
 
   const openWidget = useCallback(async () => {
     if (capturing || open || isDisabled) return
@@ -494,8 +714,9 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     }
     setCapturing(false)
     setScreenshot(img)
+    clearExtraImages()
     setOpen(true)
-    seedForm()
+    seedFreshForm()
     const { browser, os } = parseBrowserOS(navigator.userAgent)
     setCapturedMeta({
       url: window.location.href,
@@ -506,7 +727,24 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     })
     setError(null)
     setSuccess(false)
-  }, [capturing, open, isDisabled])
+    setTicket(null)
+  }, [capturing, open, isDisabled, clearExtraImages, seedFreshForm])
+
+  const openDraft = useCallback(async () => {
+    if (capturing || open || isDisabled) return
+    setMenuOpen(false)
+    revealFab()
+    const restored = await loadDraft()
+    if (!restored) {
+      openWidgetDirect()
+      return
+    }
+    clearExtraImages()
+    setOpen(true)
+    setError(null)
+    setSuccess(false)
+    setTicket(null)
+  }, [capturing, open, isDisabled, revealFab, loadDraft, openWidgetDirect, clearExtraImages])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -607,9 +845,56 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   }
 
   const close = useCallback(() => {
+    submitControllerRef.current?.abort()
+    submitControllerRef.current = null
+    setSubmitting(false)
     setOpen(false)
     setScreenshot(null)
-  }, [])
+    setSuccess(false)
+    setTicket(null)
+    clearExtraImages()
+  }, [clearExtraImages])
+
+  useEffect(() => {
+    if (!open) return
+    previousFocusRef.current = document.activeElement as HTMLElement | null
+    const root = dialogRef.current
+    const focusables = () => Array.from(root?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ) ?? []).filter((node) => node.offsetParent !== null)
+
+    const focusTimer = window.setTimeout(() => {
+      const preferred = root?.querySelector<HTMLElement>('[data-autofocus]')
+      ;(preferred ?? focusables()[0])?.focus()
+    }, 0)
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        close()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const nodes = focusables()
+      if (!nodes.length) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.clearTimeout(focusTimer)
+      document.removeEventListener('keydown', onKeyDown)
+      previousFocusRef.current?.focus?.()
+    }
+  }, [open, close])
 
   useEffect(() => { onOpenChange?.(open) }, [open, onOpenChange])
   useEffect(() => { onCapturingChange?.(capturing) }, [capturing, onCapturingChange])
@@ -621,13 +906,20 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     if (!form.title.trim() || !form.description.trim() || !form.type || submitting || !emailOk) return
     setSubmitting(true)
     setError(null)
+    const controller = new AbortController()
+    submitControllerRef.current = controller
     try {
       const dataUrl = canvasRef.current?.getAnnotatedImage()
       const images = []
       if (dataUrl) {
-        const uploaded = await uploadImage(dataUrl, projectId, filesMsApiBaseUrl, filesMsToken)
+        const uploaded = await uploadImage(dataUrl, projectId, filesMsApiBaseUrl, filesMsToken, controller.signal)
         if (uploaded) images.push(uploaded)
       }
+      for (const image of extraImages) {
+        const uploaded = await uploadImage(image.file, projectId, filesMsApiBaseUrl, filesMsToken, controller.signal)
+        if (uploaded) images.push(uploaded)
+      }
+      if (controller.signal.aborted) return
 
       const noteComments = canvasRef.current?.getNoteComments() ?? []
       const authorName = form.submittedByName.trim() || userName || DEFAULT_SUBMITTER_NAME
@@ -638,7 +930,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
         metadata: n.metadata,
       }))
 
-      await submitFeedback(projectsMsBaseUrl, projectId, projectsMsToken, {
+      const submission = await submitFeedback(projectsMsBaseUrl, projectId, projectsMsToken, {
         title: form.title.trim(),
         description: form.description.trim(),
         type: form.type,
@@ -652,13 +944,38 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
         submitted_by_email: form.notifyOnResolve && form.submitterEmail.trim() ? form.submitterEmail.trim() : undefined,
         notify_user_ids: form.selectedNotifyUsers.length > 0 ? form.selectedNotifyUsers.map(u => u.id) : undefined,
         teams_url: teamsUrl,
-      })
+        client_submission_id: clientSubmissionId,
+      }, controller.signal)
+      setTicket(submission)
       setSuccess(true)
-      setTimeout(close, 2000)
+      clearDraft()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to submit. Please try again.')
+      if (!controller.signal.aborted) {
+        setError(e instanceof Error ? e.message : 'Failed to submit. Please try again.')
+      }
     } finally {
+      if (submitControllerRef.current === controller) submitControllerRef.current = null
       setSubmitting(false)
+    }
+  }
+
+  const saveDraftNow = async () => {
+    if (!draftKey) return
+    const hasContent = !!(form.title.trim() || form.description.trim() || form.type || form.tags.length > 0)
+    if (!hasContent) {
+      setError('Add a title, description, type or tag before saving a draft.')
+      return
+    }
+    try {
+      const draft: StoredDraft = { form, clientSubmissionId, capturedMeta, savedAt: new Date().toISOString() }
+      localStorage.setItem(draftKey, JSON.stringify(draft))
+      if (screenshot) await saveDraftScreenshot(draftKey, screenshot)
+      else await deleteDraftScreenshot(draftKey)
+      setHasDraft(true)
+      close()
+      showDraftSavedHint()
+    } catch {
+      setError('Could not save this draft locally. Please try again.')
     }
   }
 
@@ -672,7 +989,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   }
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 6, display: 'block',
+    fontSize: 13, color: 'rgba(255,255,255,0.68)', marginBottom: 6, display: 'block',
   }
 
   const emailValid = !form.notifyOnResolve || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.submitterEmail)
@@ -740,13 +1057,21 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               label="Capture Feedback"
               hint="with screenshot"
               onClick={() => openWidget()}
-              icon={<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />}
+              icon={<><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></>}
             />
             <FabMenuItem
               label="Capture without screenshot"
               onClick={() => openWidgetDirect()}
-              icon={<><path d="M21 15V5a2 2 0 0 0-2-2H7" /><path d="M3 7v12a2 2 0 0 0 2 2h12" /><path d="M3 3l18 18" /></>}
+              icon={<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />}
             />
+            {hasDraft && (
+              <FabMenuItem
+                label="Continue draft"
+                hint="saved locally"
+                onClick={() => void openDraft()}
+                icon={<><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></>}
+              />
+            )}
             <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 6px' }} />
             <FabMenuItem
               label="Hide FAB"
@@ -837,6 +1162,58 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
         document.body,
       )}
 
+      {draftSavedHint && createPortal((() => {
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 0
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 0
+        const isLeft = fabPos.x + FAB_SIZE / 2 < vw / 2
+        const isTop = fabPos.y + FAB_SIZE / 2 < vh / 2
+        return (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              position: 'fixed',
+              [isLeft ? 'left' : 'right']: FAB_MARGIN,
+              [isTop ? 'top' : 'bottom']: FAB_MARGIN,
+              zIndex: 999999,
+              maxWidth: `calc(100vw - ${FAB_MARGIN * 2}px)`,
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: '#1A243E', color: 'white',
+              border: '1px solid rgba(74,222,128,0.3)', borderRadius: 10,
+              padding: '10px 14px',
+              boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
+              fontSize: 13, lineHeight: 1.4,
+              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+              animation: 'aime-fb-hint-in 0.18s ease-out',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="9" />
+              <path d="m8 12 2.5 2.5L16 9" />
+            </svg>
+            <span style={{ maxWidth: 250 }}>
+              Draft saved. Continue any time from the feedback menu.
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              <button
+                type="button"
+                aria-label="Dismiss draft saved message"
+                title="Dismiss"
+                onClick={dismissDraftSavedHint}
+                style={{ padding: 2, background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', lineHeight: 0 }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+              <span style={{ fontSize: 11, fontWeight: 600, lineHeight: 1, color: 'rgba(255,255,255,0.5)', fontVariantNumeric: 'tabular-nums' }}>
+                {draftSavedCountdown}s
+              </span>
+            </div>
+          </div>
+        )
+      })(), document.body)}
+
       {open && createPortal(
         <div
           style={{
@@ -846,7 +1223,16 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
           }}
         >
           <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="aime-feedback-title"
+            onDragEnter={onImageDragEnter}
+            onDragOver={onImageDragOver}
+            onDragLeave={onImageDragLeave}
+            onDrop={onImageDrop}
             style={{
+              position: 'relative',
               width: '96vw', height: '93vh',
               background: '#1A243E',
               border: '1px solid rgba(255,255,255,0.08)',
@@ -857,6 +1243,19 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
+            {dragActive && (
+              <div
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', inset: 0, zIndex: 20, pointerEvents: 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(26,36,62,0.82)', border: '2px dashed #7c47d8', borderRadius: 16,
+                  color: 'white', fontSize: 16, fontWeight: 600, letterSpacing: '0.01em',
+                }}
+              >
+                Drop images to attach
+              </div>
+            )}
             {/* Header */}
             <div
               style={{
@@ -866,7 +1265,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               }}
             >
               <div>
-                <div style={{ fontSize: 17, fontWeight: 600, color: 'white' }}>Submit Feedback</div>
+                <div id="aime-feedback-title" style={{ fontSize: 17, fontWeight: 600, color: 'white' }}>Submit Feedback</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>
                   Share your thoughts, report issues, or request new features.
                 </div>
@@ -946,6 +1345,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                 )}
                 <button
                   onClick={close}
+                  aria-label="Close feedback form"
                 style={{
                   background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: 8, width: 34, height: 34, cursor: 'pointer',
@@ -983,6 +1383,28 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   display: 'flex', flexDirection: 'column', gap: 18,
                 }}
               >
+                {draftRestored && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                      padding: '8px 10px', borderRadius: 8,
+                      background: 'rgba(71,116,254,0.12)', border: '1px solid rgba(71,116,254,0.3)',
+                      color: '#bfd0ff', fontSize: 12,
+                    }}
+                  >
+                    <span>Draft restored, including your screenshot.</span>
+                    <button
+                      type="button"
+                      onClick={discardDraft}
+                      style={{ background: 'none', border: 'none', color: '#dbe7ff', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                    >
+                      Discard
+                    </button>
+                  </div>
+                )}
+
                 {/* Submitter name */}
                 <div>
                   <label style={labelStyle}>Your name <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>(optional)</span></label>
@@ -991,6 +1413,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     onChange={(e) => setForm((f) => ({ ...f, submittedByName: e.target.value }))}
                     placeholder={DEFAULT_SUBMITTER_NAME}
                     maxLength={80}
+                    aria-label="Your name"
                     style={inputStyle}
                   />
                 </div>
@@ -999,7 +1422,17 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                 <div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                     <div
+                      role="checkbox"
+                      aria-checked={form.notifyOnResolve}
+                      aria-label="Notify me when this is resolved"
+                      tabIndex={0}
                       onClick={() => setForm((f) => ({ ...f, notifyOnResolve: !f.notifyOnResolve, submitterEmail: f.notifyOnResolve ? '' : f.submitterEmail }))}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          setForm((f) => ({ ...f, notifyOnResolve: !f.notifyOnResolve, submitterEmail: f.notifyOnResolve ? '' : f.submitterEmail }))
+                        }
+                      }}
                       style={{
                         width: 18, height: 18, borderRadius: 4, flexShrink: 0,
                         border: `2px solid ${form.notifyOnResolve ? '#7c47d8' : 'rgba(255,255,255,0.2)'}`,
@@ -1024,6 +1457,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                       value={form.submitterEmail}
                       onChange={(e) => setForm((f) => ({ ...f, submitterEmail: e.target.value }))}
                       placeholder="Your email address"
+                      aria-label="Email address for feedback updates"
                       style={{ ...inputStyle, marginTop: 10 }}
                     />
                   )}
@@ -1051,6 +1485,8 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                     placeholder="Brief summary of your feedback"
                     maxLength={200}
+                    aria-label="Feedback title"
+                    data-autofocus
                     style={inputStyle}
                   />
                 </div>
@@ -1063,6 +1499,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                     placeholder="Provide detailed information…"
                     rows={3}
+                    aria-label="Feedback description"
                     style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
                   />
                 </div>
@@ -1070,33 +1507,31 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                 {/* Type */}
                 <div>
                   <label style={labelStyle}>What type of feedback is this? <span style={{ color: '#ef4444' }}>*</span></label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div role="group" aria-label="Feedback type" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
                     {FEEDBACK_TYPES.map((t) => {
                       const selected = form.type === t.id
                       return (
                         <button
                           key={t.id}
+                          type="button"
+                          title={t.desc}
+                          aria-label={`${t.label}: ${t.desc}`}
                           onClick={() => setForm((f) => ({ ...f, type: t.id }))}
                           style={{
-                            display: 'flex', alignItems: 'flex-start', gap: 10,
-                            padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
-                            textAlign: 'left',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5,
+                            minHeight: 58, padding: '8px 4px', borderRadius: 8, cursor: 'pointer',
+                            textAlign: 'center',
                             background: selected ? `rgba(${hexToRgb(TYPE_COLORS[t.id])},0.12)` : 'rgba(255,255,255,0.03)',
                             border: `1px solid ${selected ? TYPE_COLORS[t.id] : 'rgba(255,255,255,0.08)'}`,
                             transition: 'all 0.15s',
                           }}
                         >
-                          <span style={{ color: selected ? TYPE_COLORS[t.id] : 'rgba(255,255,255,0.5)', flexShrink: 0, marginTop: 1 }}>
+                          <span style={{ color: selected ? TYPE_COLORS[t.id] : 'rgba(255,255,255,0.5)', display: 'flex' }}>
                             {t.icon}
                           </span>
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 500, color: selected ? 'white' : 'rgba(255,255,255,0.8)' }}>
-                              {t.label}
-                            </div>
-                            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2, lineHeight: 1.4 }}>
-                              {t.desc}
-                            </div>
-                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.2, color: selected ? 'white' : 'rgba(255,255,255,0.8)' }}>
+                            {t.label}
+                          </span>
                         </button>
                       )
                     })}
@@ -1105,38 +1540,109 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
                 {/* Status + Priority + Tags */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div>
-                    <label style={labelStyle}>Status</label>
-                    <select
-                      value={form.status}
-                      onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as FeedbackStatus }))}
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                    >
-                      {STATUS_OPTIONS.map((s) => (
-                        <option key={s.id} value={s.id} style={{ background: '#1A243E' }}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Priority</label>
-                    <select
-                      value={form.priority}
-                      onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as FeedbackPriority }))}
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                    >
-                      {PRIORITIES.map((p) => (
-                        <option key={p} value={p} style={{ background: '#1A243E' }}>
-                          {p.charAt(0).toUpperCase() + p.slice(1)}
-                        </option>
-                      ))}
-                    </select>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={labelStyle}>Status</label>
+                      <select
+                        value={form.status}
+                        aria-label="Status"
+                        onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as FeedbackStatus }))}
+                        style={{ ...inputStyle, cursor: 'pointer' }}
+                      >
+                        {STATUS_OPTIONS.map((s) => (
+                          <option key={s.id} value={s.id} style={{ background: '#1A243E' }}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Priority</label>
+                      <select
+                        value={form.priority}
+                        aria-label="Priority"
+                        onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as FeedbackPriority }))}
+                        style={{ ...inputStyle, cursor: 'pointer' }}
+                      >
+                        {PRIORITIES.map((p) => (
+                          <option key={p} value={p} style={{ background: '#1A243E' }}>
+                            {p.charAt(0).toUpperCase() + p.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label style={labelStyle}>Tags</label>
                     <TagInput tags={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
                   </div>
+                </div>
+
+                {/* Additional images */}
+                <div>
+                  <label style={labelStyle}>
+                    Additional images <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>(optional, max {MAX_EXTRA_IMAGES})</span>
+                  </label>
+                  <input
+                    ref={attachInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      addExtraImages(e.target.files)
+                      e.target.value = ''
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => attachInputRef.current?.click()}
+                    disabled={extraImages.length >= MAX_EXTRA_IMAGES}
+                    aria-label="Add additional images. You can also drag, drop or paste images."
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 7,
+                      padding: '8px 12px', borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      background: 'rgba(255,255,255,0.06)',
+                      color: extraImages.length >= MAX_EXTRA_IMAGES ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)',
+                      fontSize: 13, cursor: extraImages.length >= MAX_EXTRA_IMAGES ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    Add images
+                    <span style={{ color: 'rgba(255,255,255,0.35)' }}>{extraImages.length}/{MAX_EXTRA_IMAGES}</span>
+                  </button>
+                  {extraImages.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                      {extraImages.map((image, index) => (
+                        <div key={`${image.file.name}-${index}`} style={{ position: 'relative', width: 68, height: 68 }}>
+                          <img
+                            src={image.preview}
+                            alt={image.file.name}
+                            title={image.file.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)' }}
+                          />
+                          <button
+                            type="button"
+                            aria-label={`Remove ${image.file.name}`}
+                            onClick={() => removeExtraImage(index)}
+                            style={{
+                              position: 'absolute', top: -5, right: -5, width: 18, height: 18,
+                              borderRadius: '50%', border: '1px solid rgba(255,255,255,0.25)',
+                              background: '#1A243E', color: 'white', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 12, lineHeight: 1, padding: 0,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -1153,41 +1659,86 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
             >
               <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
                 {error && (
-                  <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#fca5a5', fontSize: 13, display: 'inline-block', maxWidth: '100%' }}>
+                  <div role="alert" style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#fca5a5', fontSize: 13, display: 'inline-block', maxWidth: '100%' }}>
                     {error}
                   </div>
                 )}
                 {success && (
-                  <div style={{ padding: '8px 12px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: '#86efac', fontSize: 13, display: 'inline-block', maxWidth: '100%' }}>
-                    Feedback submitted successfully. Thank you!
+                  <div role="status" aria-live="polite" style={{ padding: '8px 12px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, color: '#86efac', fontSize: 13, display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, maxWidth: '100%' }}>
+                    <span>
+                      Feedback submitted successfully
+                      {ticket?.feedbackNumber ? `, ticket #${ticket.feedbackNumber}` : ''}.
+                    </span>
+                    {ticket?.feedbackNumber && (ticket.statusUrl || teamsUrl) && (
+                      <a
+                        href={ticket.statusUrl ?? `${teamsUrl!.replace(/\/+$/, '')}/projects/${projectId}/feedback/${ticket.feedbackNumber}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#bbf7d0', fontWeight: 600, textDecoration: 'underline' }}
+                      >
+                        Track status
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={close}
-                style={{
-                  padding: '0 24px', height: 40, borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'transparent', color: 'rgba(255,255,255,0.7)',
-                  fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                style={{
-                  padding: '0 28px', height: 40, borderRadius: 8,
-                  background: canSubmit ? 'linear-gradient(135deg, #4540E8, #7c3aed)' : 'rgba(255,255,255,0.08)',
-                  border: 'none', color: canSubmit ? 'white' : 'rgba(255,255,255,0.3)',
-                  fontSize: 14, fontWeight: 500, cursor: canSubmit ? 'pointer' : 'not-allowed',
-                  transition: 'opacity 0.15s', fontFamily: 'inherit',
-                }}
-              >
-                {submitting ? 'Submitting…' : 'Submit Feedback'}
-              </button>
+              {success ? (
+                <button
+                  onClick={close}
+                  style={{
+                    padding: '0 28px', height: 40, borderRadius: 8,
+                    background: 'linear-gradient(135deg, #4540E8, #7c3aed)',
+                    border: 'none', color: 'white',
+                    fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Close
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={close}
+                    style={{
+                      padding: '0 24px', height: 40, borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      background: 'transparent', color: 'rgba(255,255,255,0.7)',
+                      fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void saveDraftNow()}
+                    disabled={!form.title.trim() && !form.description.trim() && !form.type && form.tags.length === 0}
+                    style={{
+                      padding: '0 18px', height: 40, borderRadius: 8,
+                      border: '1px solid rgba(255,255,255,0.18)',
+                      background: 'rgba(255,255,255,0.04)',
+                      color: 'rgba(255,255,255,0.78)',
+                      fontSize: 13, fontWeight: 500,
+                      cursor: (!form.title.trim() && !form.description.trim() && !form.type && form.tags.length === 0) ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit', opacity: (!form.title.trim() && !form.description.trim() && !form.type && form.tags.length === 0) ? 0.45 : 1,
+                    }}
+                  >
+                    Save Draft
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    style={{
+                      padding: '0 28px', height: 40, borderRadius: 8,
+                      background: canSubmit ? 'linear-gradient(135deg, #4540E8, #7c3aed)' : 'rgba(255,255,255,0.08)',
+                      border: 'none', color: canSubmit ? 'white' : 'rgba(255,255,255,0.3)',
+                      fontSize: 14, fontWeight: 500, cursor: canSubmit ? 'pointer' : 'not-allowed',
+                      transition: 'opacity 0.15s', fontFamily: 'inherit',
+                    }}
+                  >
+                    {submitting ? 'Submitting…' : 'Submit Feedback'}
+                  </button>
+                </>
+              )}
               </div>
             </div>
           </div>

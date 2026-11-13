@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-13
+
+### Added
+- **Multiple images per feedback item.** The widget accepts up to five additional image attachments alongside the annotated screenshot. Each image is uploaded through files-ms and stored in the existing `images[]` array.
+- **Feedback ticket tracking.** Submission now returns the created feedback number and public status URL; the success state shows the ticket number and a direct link to the read-only status page.
+- **Draft autosave.** Text fields and the screenshot are saved locally per project; the FAB menu exposes “Continue draft” when one exists. Successful submissions clear the draft. Attachments still need re-adding.
+- **Image drag/drop and paste.** Images can be dropped anywhere on the widget or pasted from the clipboard alongside the file picker.
+- **Accessibility.** Added dialog semantics, focus trapping/restoration, Escape-to-close, labelled controls, live regions and improved text contrast.
+- **Resilient submission.** The client retries transient network/5xx failures using a stable submission id; the backend treats repeated submissions as idempotent.
+
 ## [0.3.5] - 2026-07-10
 
 ### Added
