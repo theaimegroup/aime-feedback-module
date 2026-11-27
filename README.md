@@ -44,6 +44,8 @@ export default function App() {
 
 No stylesheet import is required; the widget is fully self-styled.
 
+The widget uses **Inter** throughout and loads it once per page from Google Fonts (weights 400–700). If that request is blocked, it falls back to the system UI font stack.
+
 A floating action button appears in the bottom-left corner. Drag it to any corner — position persists in `localStorage`.
 
 ### Environment variables (read this)

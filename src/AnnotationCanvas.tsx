@@ -21,6 +21,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { CANVAS_FONT_FAMILY, FONT_STACK } from './fonts'
 
 export type DrawTool = 'select' | 'text' | 'rect' | 'ellipse' | 'arrow' | 'note'
 
@@ -65,7 +66,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number): st
 function measureNoteSize(text: string, fontSize: number, fontWeight: string, fontStyle: string): { width: number; height: number } {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')!
-  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px sans-serif`
+  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${CANVAS_FONT_FAMILY}`
   const MIN_W = 120, MAX_W = 320, PAD_X = 24, PAD_Y = 20
   // determine wrapping width based on longest unwrapped line
   const rawLines = text.split('\n')
@@ -169,7 +170,7 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
     if (keepWidth) {
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')!
-      ctx.font = `${fs2} ${fw} ${fs}px sans-serif`
+      ctx.font = `${fs2} ${fw} ${fs}px ${CANVAS_FONT_FAMILY}`
       const W = this.width as number
       const lines = wrapText(ctx, text, W - 20)
       const h = Math.max(50, lines.length * fs * 1.4 + 20)
@@ -276,7 +277,7 @@ const NoteBubbleClass = (fabric.util as any).createClass(fabric.Object, {
     if (!this.isEditing) {
       ctx.save()
       ctx.fillStyle    = this.noteTextColor as string
-      ctx.font         = `${this.noteFontStyle} ${this.noteFontWeight} ${fs}px sans-serif`
+      ctx.font         = `${this.noteFontStyle} ${this.noteFontWeight} ${fs}px ${CANVAS_FONT_FAMILY}`
       ctx.textBaseline = 'top'
       const maxW  = W - 20
       const lines = wrapText(ctx, this.noteText as string, maxW)
@@ -733,7 +734,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
         if (t === 'text') {
           const txt = new fabric.IText('', {
             left: p.x, top: p.y,
-            fontSize: 18, fill: colorRef.current, fontFamily: 'sans-serif',
+            fontSize: 18, fill: colorRef.current, fontFamily: CANVAS_FONT_FAMILY,
           })
           lockMidHandles(txt)
           canvas.add(txt)
@@ -848,6 +849,16 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
         canvas.renderAll()
       })
       resizeObserver.observe(container)
+
+      // Repaint once Inter finishes loading so canvas text uses the same family
+      // as the surrounding UI without resizing objects the user already placed.
+      if (typeof document !== 'undefined' && document.fonts?.ready) {
+        void document.fonts.ready.then(() => {
+          if (cancelled) return
+          canvas.getObjects().forEach((obj) => { (obj as any).dirty = true })
+          canvas.renderAll()
+        })
+      }
 
       return () => {
         cancelled = true
@@ -1078,7 +1089,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                   setNoteBold(next); noteBoldRef.current = next
                   applyNoteStyle({ noteFontWeight: next ? 'bold' : 'normal' })
                 }}
-                style={{ ...btn(noteBold), fontWeight: 'bold', fontSize: 13, fontFamily: 'serif' }}
+                style={{ ...btn(noteBold), fontWeight: 'bold', fontSize: 13, fontFamily: FONT_STACK }}
               >B</button>
 
               {/* italic */}
@@ -1089,7 +1100,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                   setNoteItalic(next); noteItalicRef.current = next
                   applyNoteStyle({ noteFontStyle: next ? 'italic' : 'normal' })
                 }}
-                style={{ ...btn(noteItalic), fontStyle: 'italic', fontSize: 13, fontFamily: 'serif' }}
+                style={{ ...btn(noteItalic), fontStyle: 'italic', fontSize: 13, fontFamily: FONT_STACK }}
               >I</button>
 
               {/* note font size */}
@@ -1186,7 +1197,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 fontSize:    `${editingNote.fontSize}px`,
                 fontWeight:  (editingNote.obj.noteFontWeight as string) || 'normal',
                 fontStyle:   (editingNote.obj.noteFontStyle  as string) || 'normal',
-                fontFamily:  'sans-serif',
+                fontFamily:  FONT_STACK,
                 padding:     '8px 10px',
                 resize:      'none',
                 overflow:    'hidden',

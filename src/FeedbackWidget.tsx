@@ -7,6 +7,7 @@ import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackStatus, F
 import { deleteDraftScreenshot, getDraftScreenshot, saveDraftScreenshot } from './draftStorage'
 import { uploadImage } from './upload'
 import { AIME_LOGO_DATA_URL } from './logo'
+import { FONT_STACK, INTER_FONT_STYLESHEET_URL } from './fonts'
 
 interface Props {
   projectId: string
@@ -946,6 +947,24 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   useEffect(() => { onOpenChange?.(open) }, [open, onOpenChange])
   useEffect(() => { onCapturingChange?.(capturing) }, [capturing, onCapturingChange])
 
+  // Load Inter once per page. Hosts that already ship Inter reuse the same
+  // family; everywhere else the module falls back to the system UI stack.
+  useEffect(() => {
+    if (typeof document === 'undefined' || document.getElementById('aime-feedback-inter-font')) return
+    const preconnectApi = document.createElement('link')
+    preconnectApi.rel = 'preconnect'
+    preconnectApi.href = 'https://fonts.googleapis.com'
+    const preconnectFiles = document.createElement('link')
+    preconnectFiles.rel = 'preconnect'
+    preconnectFiles.href = 'https://fonts.gstatic.com'
+    preconnectFiles.crossOrigin = 'anonymous'
+    const stylesheet = document.createElement('link')
+    stylesheet.id = 'aime-feedback-inter-font'
+    stylesheet.rel = 'stylesheet'
+    stylesheet.href = INTER_FONT_STYLESHEET_URL
+    document.head.append(preconnectApi, preconnectFiles, stylesheet)
+  }, [])
+
   // Lock background scrolling while the full-screen sheet is open so touch
   // swipes on the modal don't scroll the host app underneath it.
   useEffect(() => {
@@ -1120,7 +1139,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
-              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontFamily: FONT_STACK,
             }}
           >
             <FabMenuItem
@@ -1178,7 +1197,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
             padding: '10px 14px', cursor: 'pointer',
             boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
             fontSize: 13, lineHeight: 1.4,
-            fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+            fontFamily: FONT_STACK,
             animation: `aime-fb-hint-in 0.18s ease-out`,
           }}
         >
@@ -1253,7 +1272,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               padding: '10px 14px',
               boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
               fontSize: 13, lineHeight: 1.4,
-              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+              fontFamily: FONT_STACK,
               animation: 'aime-fb-hint-in 0.18s ease-out',
             }}
           >
@@ -1316,7 +1335,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               display: 'flex', flexDirection: 'column',
               overflow: 'hidden',
               boxShadow: isMobile ? 'none' : '0 30px 80px rgba(0,0,0,0.7)',
-              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontFamily: FONT_STACK,
               WebkitTapHighlightColor: 'transparent',
             }}
           >
