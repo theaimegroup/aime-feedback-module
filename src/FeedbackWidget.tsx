@@ -156,6 +156,7 @@ function UserMultiSelect({ users, selected, onChange, touch = false }: {
           border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
           padding: touch ? '12px' : '10px 12px', color: 'white',
           fontSize: touch ? 16 : 14, outline: 'none',
+          fontFamily: FONT_STACK,
           boxSizing: 'border-box', opacity: atMax ? 0.5 : 1,
           minHeight: touch ? 44 : undefined,
         }}
@@ -411,7 +412,7 @@ function TagInput({ tags, onChange, touch = false }: { tags: string[]; onChange:
         style={{
           background: 'none', border: 'none', outline: 'none',
           color: 'white', fontSize: touch ? 16 : 14, minWidth: 80, flex: 1,
-          minHeight: touch ? 32 : undefined,
+          minHeight: touch ? 32 : undefined, fontFamily: FONT_STACK,
         }}
       />
     </div>
@@ -1067,6 +1068,9 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     width: '100%', background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
     padding: isMobile ? 12 : '10px 12px', color: 'white',
+    // Form controls don't inherit fonts; without this, textarea defaults to
+    // monospace and selects/inputs use the browser's UI font.
+    fontFamily: FONT_STACK,
     // 16px prevents iOS Safari from zooming the page when a field is focused.
     fontSize: isMobile ? 16 : 14, outline: 'none',
     boxSizing: 'border-box', minHeight: isMobile ? 44 : undefined,

@@ -1056,6 +1056,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                   style={{
                     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 6, color: 'white', fontSize: 12, padding: '2px 4px', cursor: 'pointer',
+                    fontFamily: FONT_STACK,
                     height: compact ? 34 : 26,
                   }}
                 >
@@ -1116,6 +1117,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                   style={{
                     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 6, color: 'white', fontSize: 12, padding: '2px 4px', cursor: 'pointer',
+                    fontFamily: FONT_STACK,
                     height: compact ? 34 : 26,
                   }}
                 >
