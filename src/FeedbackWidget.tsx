@@ -7,6 +7,7 @@ import type { FeedbackComment, FeedbackMeta, FeedbackPriority, FeedbackStatus, F
 import { deleteDraftScreenshot, getDraftScreenshot, saveDraftScreenshot } from './draftStorage'
 import { uploadImage } from './upload'
 import { AIME_LOGO_DATA_URL } from './logo'
+import { FONT_STACK, INTER_FONT_STYLESHEET_URL } from './fonts'
 
 interface Props {
   projectId: string
@@ -84,10 +85,11 @@ const makeClientSubmissionId = () =>
     ? crypto.randomUUID()
     : `fb-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-function UserMultiSelect({ users, selected, onChange }: {
+function UserMultiSelect({ users, selected, onChange, touch = false }: {
   users: NotifyUser[]
   selected: NotifyUser[]
   onChange: (u: NotifyUser[]) => void
+  touch?: boolean
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -131,7 +133,13 @@ function UserMultiSelect({ users, selected, onChange }: {
               {u.name}
               <button
                 onClick={() => remove(u.id)}
-                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 14, opacity: 0.7 }}
+                aria-label={`Remove ${u.name}`}
+                style={{
+                  background: 'none', border: 'none', color: 'inherit', cursor: 'pointer',
+                  padding: 0, lineHeight: 1, fontSize: 14, opacity: 0.7,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  minWidth: touch ? 28 : 16, minHeight: touch ? 28 : 16, marginRight: touch ? -6 : 0,
+                }}
               >×</button>
             </span>
           ))}
@@ -146,8 +154,11 @@ function UserMultiSelect({ users, selected, onChange }: {
         style={{
           width: '100%', background: 'rgba(255,255,255,0.06)',
           border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
-          padding: '10px 12px', color: 'white', fontSize: 14, outline: 'none',
+          padding: touch ? '12px' : '10px 12px', color: 'white',
+          fontSize: touch ? 16 : 14, outline: 'none',
+          fontFamily: FONT_STACK,
           boxSizing: 'border-box', opacity: atMax ? 0.5 : 1,
+          minHeight: touch ? 44 : undefined,
         }}
       />
       {open && available.length > 0 && (
@@ -162,8 +173,9 @@ function UserMultiSelect({ users, selected, onChange }: {
               key={u.id}
               onMouseDown={() => add(u)}
               style={{
-                padding: '9px 14px', fontSize: 13, color: '#e1e8fc', cursor: 'pointer',
-                transition: 'background 0.1s',
+                padding: touch ? '12px 14px' : '9px 14px', fontSize: touch ? 14 : 13,
+                color: '#e1e8fc', cursor: 'pointer', transition: 'background 0.1s',
+                minHeight: touch ? 44 : undefined, display: 'flex', alignItems: 'center',
               }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -246,6 +258,30 @@ const STATUS_OPTIONS: { id: FeedbackStatus; label: string }[] = [
 const getViewportW = () => (typeof window !== 'undefined' ? window.innerWidth : 1024)
 const getViewportH = () => (typeof window !== 'undefined' ? window.innerHeight : 768)
 
+// Below the wide breakpoint the annotation pane stacks above the form; below
+// the mobile breakpoint the dialog becomes a full-screen sheet.
+const STACK_BREAKPOINT = 900
+const MOBILE_BREAKPOINT = 640
+
+function useViewportSize() {
+  const [size, setSize] = useState(() => ({ w: getViewportW(), h: getViewportH() }))
+  useEffect(() => {
+    let frame = 0
+    const update = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => setSize({ w: window.innerWidth, h: window.innerHeight }))
+    }
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', update)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', update)
+    }
+  }, [])
+  return size
+}
+
 /** A single row in the FAB action menu. `icon` is the inner paths of a 24×24 stroke SVG. */
 function FabMenuItem({
   label,
@@ -267,7 +303,7 @@ function FabMenuItem({
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-        padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
+        padding: '9px 10px', borderRadius: 8, cursor: 'pointer', minHeight: 44, boxSizing: 'border-box',
         background: 'transparent', border: 'none', textAlign: 'left', color,
         fontFamily: 'inherit', fontSize: 13.5,
       }}
@@ -323,7 +359,7 @@ function snapToCorner(pos: { x: number; y: number }): { x: number; y: number } {
   }
 }
 
-function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) => void }) {
+function TagInput({ tags, onChange, touch = false }: { tags: string[]; onChange: (t: string[]) => void; touch?: boolean }) {
   const [input, setInput] = useState('')
 
   const add = () => {
@@ -337,7 +373,7 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
       style={{
         display: 'flex', flexWrap: 'wrap', gap: 5, padding: '6px 10px',
         background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 8, minHeight: 40, alignItems: 'center',
+        borderRadius: 8, minHeight: touch ? 44 : 40, alignItems: 'center',
       }}
     >
       {tags.map((tag) => (
@@ -352,7 +388,13 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
           {tag}
           <button
             onClick={() => onChange(tags.filter((t) => t !== tag))}
-            style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 15 }}
+            aria-label={`Remove tag ${tag}`}
+            style={{
+              background: 'none', border: 'none', color: 'inherit', cursor: 'pointer',
+              padding: 0, lineHeight: 1, fontSize: touch ? 18 : 15,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              minWidth: touch ? 24 : 14, minHeight: touch ? 24 : 14, marginRight: touch ? -4 : 0,
+            }}
           >
             ×
           </button>
@@ -369,7 +411,8 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
         placeholder={tags.length === 0 ? 'Add tags…' : ''}
         style={{
           background: 'none', border: 'none', outline: 'none',
-          color: 'white', fontSize: 14, minWidth: 80, flex: 1,
+          color: 'white', fontSize: touch ? 16 : 14, minWidth: 80, flex: 1,
+          minHeight: touch ? 32 : undefined, fontFamily: FONT_STACK,
         }}
       />
     </div>
@@ -385,6 +428,9 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   ref,
 ) {
   const [open, setOpen] = useState(false)
+  const { w: viewportW, h: viewportH } = useViewportSize()
+  const isMobile = viewportW < MOBILE_BREAKPOINT
+  const isStacked = viewportW < STACK_BREAKPOINT
   const [menuOpen, setMenuOpen] = useState(false)
   const [fabHidden, setFabHidden] = useState<boolean>(() => {
     try { return localStorage.getItem(FAB_HIDDEN_LS_KEY) === '1' } catch { return false }
@@ -864,6 +910,9 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
     ) ?? []).filter((node) => node.offsetParent !== null)
 
     const focusTimer = window.setTimeout(() => {
+      // Avoid popping the soft keyboard (and scrolling the stacked layout past
+      // the annotation pane) on touch devices; Tab still enters the focus trap.
+      if (window.innerWidth < STACK_BREAKPOINT || window.matchMedia?.('(pointer: coarse)').matches) return
       const preferred = root?.querySelector<HTMLElement>('[data-autofocus]')
       ;(preferred ?? focusables()[0])?.focus()
     }, 0)
@@ -898,6 +947,40 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
   useEffect(() => { onOpenChange?.(open) }, [open, onOpenChange])
   useEffect(() => { onCapturingChange?.(capturing) }, [capturing, onCapturingChange])
+
+  // Load Inter once per page. Hosts that already ship Inter reuse the same
+  // family; everywhere else the module falls back to the system UI stack.
+  useEffect(() => {
+    if (typeof document === 'undefined' || document.getElementById('aime-feedback-inter-font')) return
+    const preconnectApi = document.createElement('link')
+    preconnectApi.rel = 'preconnect'
+    preconnectApi.href = 'https://fonts.googleapis.com'
+    const preconnectFiles = document.createElement('link')
+    preconnectFiles.rel = 'preconnect'
+    preconnectFiles.href = 'https://fonts.gstatic.com'
+    preconnectFiles.crossOrigin = 'anonymous'
+    const stylesheet = document.createElement('link')
+    stylesheet.id = 'aime-feedback-inter-font'
+    stylesheet.rel = 'stylesheet'
+    stylesheet.href = INTER_FONT_STYLESHEET_URL
+    document.head.append(preconnectApi, preconnectFiles, stylesheet)
+  }, [])
+
+  // Lock background scrolling while the full-screen sheet is open so touch
+  // swipes on the modal don't scroll the host app underneath it.
+  useEffect(() => {
+    if (!open) return
+    const { body } = document
+    const prevOverflow = body.style.overflow
+    const prevPaddingRight = body.style.paddingRight
+    const scrollbar = window.innerWidth - document.documentElement.clientWidth
+    body.style.overflow = 'hidden'
+    if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`
+    return () => {
+      body.style.overflow = prevOverflow
+      body.style.paddingRight = prevPaddingRight
+    }
+  }, [open])
 
   useImperativeHandle(ref, () => ({ open: openWidget, close }), [openWidget, close])
 
@@ -984,16 +1067,26 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
   const inputStyle: React.CSSProperties = {
     width: '100%', background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
-    padding: '10px 12px', color: 'white', fontSize: 14, outline: 'none',
-    boxSizing: 'border-box',
+    padding: isMobile ? 12 : '10px 12px', color: 'white',
+    // Form controls don't inherit fonts; without this, textarea defaults to
+    // monospace and selects/inputs use the browser's UI font.
+    fontFamily: FONT_STACK,
+    // 16px prevents iOS Safari from zooming the page when a field is focused.
+    fontSize: isMobile ? 16 : 14, outline: 'none',
+    boxSizing: 'border-box', minHeight: isMobile ? 44 : undefined,
   }
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13, color: 'rgba(255,255,255,0.68)', marginBottom: 6, display: 'block',
+    fontSize: isMobile ? 14 : 13, color: 'rgba(255,255,255,0.68)', marginBottom: 6, display: 'block',
   }
 
   const emailValid = !form.notifyOnResolve || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.submitterEmail)
   const canSubmit = !!form.title.trim() && !!form.description.trim() && !!form.type && !submitting && emailValid
+  // The two-column layout leaves the form pane narrow on laptops, so give the
+  // type buttons two rows there instead of squeezing four across.
+  const typeColumns = isMobile || (!isStacked && viewportW < 1200) ? 2 : 4
+  const toggleNotifyOnResolve = () =>
+    setForm((f) => ({ ...f, notifyOnResolve: !f.notifyOnResolve, submitterEmail: f.notifyOnResolve ? '' : f.submitterEmail }))
 
   return (
     <>
@@ -1050,7 +1143,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
-              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontFamily: FONT_STACK,
             }}
           >
             <FabMenuItem
@@ -1108,7 +1201,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
             padding: '10px 14px', cursor: 'pointer',
             boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
             fontSize: 13, lineHeight: 1.4,
-            fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+            fontFamily: FONT_STACK,
             animation: `aime-fb-hint-in 0.18s ease-out`,
           }}
         >
@@ -1183,7 +1276,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
               padding: '10px 14px',
               boxShadow: '0 8px 28px rgba(0,0,0,0.45)',
               fontSize: 13, lineHeight: 1.4,
-              fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+              fontFamily: FONT_STACK,
               animation: 'aime-fb-hint-in 0.18s ease-out',
             }}
           >
@@ -1219,7 +1312,11 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
           style={{
             position: 'fixed', inset: 0, zIndex: 999999,
             background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex',
+            alignItems: isMobile ? 'stretch' : 'center',
+            justifyContent: 'center',
+            padding: isMobile ? 0 : isStacked ? 12 : 0,
+            boxSizing: 'border-box',
           }}
         >
           <div
@@ -1233,14 +1330,17 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
             onDrop={onImageDrop}
             style={{
               position: 'relative',
-              width: '96vw', height: '93vh',
+              width: isMobile ? '100%' : '96vw',
+              height: isMobile ? '100dvh' : '93vh',
+              minHeight: isMobile ? viewportH : undefined,
               background: '#1A243E',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 16,
+              border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
+              borderRadius: isMobile ? 0 : 16,
               display: 'flex', flexDirection: 'column',
               overflow: 'hidden',
-              boxShadow: '0 30px 80px rgba(0,0,0,0.7)',
-              fontFamily: 'system-ui, -apple-system, sans-serif',
+              boxShadow: isMobile ? 'none' : '0 30px 80px rgba(0,0,0,0.7)',
+              fontFamily: FONT_STACK,
+              WebkitTapHighlightColor: 'transparent',
             }}
           >
             {dragActive && (
@@ -1260,36 +1360,45 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
             <div
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0 24px', height: 60, flexShrink: 0,
+                gap: 8,
+                padding: isMobile ? 'calc(8px + env(safe-area-inset-top)) 14px 8px' : '0 24px',
+                minHeight: isMobile ? 56 : undefined,
+                height: isMobile ? 'auto' : 60, flexShrink: 0,
                 borderBottom: '1px solid rgba(255,255,255,0.07)',
               }}
             >
-              <div>
-                <div id="aime-feedback-title" style={{ fontSize: 17, fontWeight: 600, color: 'white' }}>Submit Feedback</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>
-                  Share your thoughts, report issues, or request new features.
-                </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div id="aime-feedback-title" style={{ fontSize: isMobile ? 16 : 17, fontWeight: 600, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Submit Feedback</div>
+                {!isMobile && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>
+                    Share your thoughts, report issues, or request new features.
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0 }}>
                 {teamsUrl && (
                   <a
                     href={`${teamsUrl.replace(/\/+$/, '')}/projects/${projectId}/feedback`}
                     target="_blank"
                     rel="noopener noreferrer"
+                    aria-label="Open AIME Teams feedback inbox"
+                    title="Open AIME Teams feedback inbox"
                     style={{
-                      fontSize: 13,
+                      fontSize: isMobile ? 12 : 13,
                       color: 'rgba(255,255,255,0.85)',
                       textDecoration: 'none',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 8,
-                      padding: '7px 12px',
+                      gap: isMobile ? 6 : 8,
+                      padding: isMobile ? '6px 8px' : '7px 12px',
                       borderRadius: 8,
                       background: 'rgba(255,255,255,0.06)',
                       border: '1px solid rgba(255,255,255,0.12)',
                       transition: 'all 0.15s',
                       fontWeight: 500,
                       cursor: 'pointer',
+                      minHeight: isMobile ? 44 : undefined,
+                      boxSizing: 'border-box',
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.color = 'white'
@@ -1310,7 +1419,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                       height={22}
                       style={{ borderRadius: 5, flexShrink: 0, display: 'block' }}
                     />
-                    AIME Teams
+                    {!isMobile && 'AIME Teams'}
                     {(() => {
                       const tag = deriveEnvTag(teamsUrl)
                       if (!tag) return null
@@ -1348,9 +1457,10 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   aria-label="Close feedback form"
                 style={{
                   background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 8, width: 34, height: 34, cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.6)', fontSize: 18, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 8, width: isMobile ? 44 : 34, height: isMobile ? 44 : 34,
+                  cursor: 'pointer', flexShrink: 0,
+                  color: 'rgba(255,255,255,0.6)', fontSize: isMobile ? 20 : 18,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
                   ✕
@@ -1359,28 +1469,41 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
             </div>
 
             {/* Body */}
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <div style={{
+              display: 'flex', flex: 1, minHeight: 0,
+              flexDirection: isStacked ? 'column' : 'row',
+              overflowY: isStacked ? 'auto' : 'hidden',
+              overflowX: 'hidden',
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehavior: 'contain',
+            }}>
               {/* Left: annotation */}
               <div
                 style={{
-                  flex: '0 0 66.666%', minWidth: 0, padding: 16,
-                  borderRight: '1px solid rgba(255,255,255,0.07)',
+                  flex: isStacked ? '0 0 auto' : '0 0 66.666%', minWidth: 0,
+                  padding: isMobile ? 12 : 16,
+                  borderRight: isStacked ? 'none' : '1px solid rgba(255,255,255,0.07)',
+                  borderBottom: isStacked ? '1px solid rgba(255,255,255,0.07)' : 'none',
                   display: 'flex', flexDirection: 'column',
+                  boxSizing: 'border-box',
                 }}
               >
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 10, fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                   Annotate Screenshot
                 </div>
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <AnnotationCanvas ref={canvasRef} screenshot={screenshot} />
+                <div style={isStacked ? undefined : { flex: 1, overflow: 'hidden' }}>
+                  <AnnotationCanvas ref={canvasRef} screenshot={screenshot} compact={isMobile} />
                 </div>
               </div>
 
               {/* Right: form */}
               <div
                 style={{
-                  flex: 1, minWidth: 0, overflowY: 'auto', padding: '16px 24px',
-                  display: 'flex', flexDirection: 'column', gap: 18,
+                  flex: isStacked ? '0 0 auto' : 1, minWidth: 0,
+                  overflowY: isStacked ? 'visible' : 'auto',
+                  padding: isMobile ? '14px 16px 20px' : '16px 24px',
+                  display: 'flex', flexDirection: 'column', gap: isMobile ? 16 : 18,
+                  boxSizing: 'border-box',
                 }}
               >
                 {draftRestored && (
@@ -1398,7 +1521,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     <button
                       type="button"
                       onClick={discardDraft}
-                      style={{ background: 'none', border: 'none', color: '#dbe7ff', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: '#dbe7ff', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: '8px 4px', minHeight: isMobile ? 44 : undefined, display: 'inline-flex', alignItems: 'center' }}
                     >
                       Discard
                     </button>
@@ -1420,21 +1543,24 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
 
                 {/* Notify on resolve */}
                 <div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <label
+                    onClick={toggleNotifyOnResolve}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', minHeight: isMobile ? 44 : undefined }}
+                  >
                     <div
                       role="checkbox"
                       aria-checked={form.notifyOnResolve}
                       aria-label="Notify me when this is resolved"
                       tabIndex={0}
-                      onClick={() => setForm((f) => ({ ...f, notifyOnResolve: !f.notifyOnResolve, submitterEmail: f.notifyOnResolve ? '' : f.submitterEmail }))}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault()
-                          setForm((f) => ({ ...f, notifyOnResolve: !f.notifyOnResolve, submitterEmail: f.notifyOnResolve ? '' : f.submitterEmail }))
+                          toggleNotifyOnResolve()
                         }
                       }}
                       style={{
-                        width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                        width: isMobile ? 24 : 18, height: isMobile ? 24 : 18,
+                        borderRadius: 4, flexShrink: 0,
                         border: `2px solid ${form.notifyOnResolve ? '#7c47d8' : 'rgba(255,255,255,0.2)'}`,
                         background: form.notifyOnResolve ? '#7c47d8' : 'transparent',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1447,7 +1573,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                         </svg>
                       )}
                     </div>
-                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', userSelect: 'none' }}>
+                    <span style={{ fontSize: isMobile ? 14 : 13, color: 'rgba(255,255,255,0.7)', userSelect: 'none' }}>
                       Notify me when this is resolved
                     </span>
                   </label>
@@ -1473,6 +1599,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                       users={notifyUsers}
                       selected={form.selectedNotifyUsers}
                       onChange={(u) => setForm((f) => ({ ...f, selectedNotifyUsers: u }))}
+                      touch={isMobile}
                     />
                   </div>
                 )}
@@ -1500,14 +1627,14 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     placeholder="Provide detailed information…"
                     rows={3}
                     aria-label="Feedback description"
-                    style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
+                    style={{ ...inputStyle, resize: 'vertical', minHeight: isMobile ? 96 : 80 }}
                   />
                 </div>
 
                 {/* Type */}
                 <div>
                   <label style={labelStyle}>What type of feedback is this? <span style={{ color: '#ef4444' }}>*</span></label>
-                  <div role="group" aria-label="Feedback type" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
+                  <div role="group" aria-label="Feedback type" style={{ display: 'grid', gridTemplateColumns: `repeat(${typeColumns}, minmax(0, 1fr))`, gap: isMobile ? 8 : 6 }}>
                     {FEEDBACK_TYPES.map((t) => {
                       const selected = form.type === t.id
                       return (
@@ -1519,7 +1646,8 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                           onClick={() => setForm((f) => ({ ...f, type: t.id }))}
                           style={{
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5,
-                            minHeight: 58, padding: '8px 4px', borderRadius: 8, cursor: 'pointer',
+                            minHeight: isMobile ? 64 : 58, padding: isMobile ? '10px 6px' : '8px 4px',
+                            borderRadius: 8, cursor: 'pointer',
                             textAlign: 'center',
                             background: selected ? `rgba(${hexToRgb(TYPE_COLORS[t.id])},0.12)` : 'rgba(255,255,255,0.03)',
                             border: `1px solid ${selected ? TYPE_COLORS[t.id] : 'rgba(255,255,255,0.08)'}`,
@@ -1529,7 +1657,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                           <span style={{ color: selected ? TYPE_COLORS[t.id] : 'rgba(255,255,255,0.5)', display: 'flex' }}>
                             {t.icon}
                           </span>
-                          <span style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.2, color: selected ? 'white' : 'rgba(255,255,255,0.8)' }}>
+                          <span style={{ fontSize: isMobile ? 12 : 11, fontWeight: 500, lineHeight: 1.2, color: selected ? 'white' : 'rgba(255,255,255,0.8)' }}>
                             {t.label}
                           </span>
                         </button>
@@ -1574,7 +1702,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   </div>
                   <div>
                     <label style={labelStyle}>Tags</label>
-                    <TagInput tags={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
+                    <TagInput tags={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} touch={isMobile} />
                   </div>
                 </div>
 
@@ -1607,6 +1735,7 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                       color: extraImages.length >= MAX_EXTRA_IMAGES ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)',
                       fontSize: 13, cursor: extraImages.length >= MAX_EXTRA_IMAGES ? 'not-allowed' : 'pointer',
                       fontFamily: 'inherit',
+                      minHeight: isMobile ? 44 : undefined,
                     }}
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -1630,11 +1759,12 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                             aria-label={`Remove ${image.file.name}`}
                             onClick={() => removeExtraImage(index)}
                             style={{
-                              position: 'absolute', top: -5, right: -5, width: 18, height: 18,
+                              position: 'absolute', top: isMobile ? -8 : -5, right: isMobile ? -8 : -5,
+                              width: isMobile ? 28 : 18, height: isMobile ? 28 : 18,
                               borderRadius: '50%', border: '1px solid rgba(255,255,255,0.25)',
                               background: '#1A243E', color: 'white', cursor: 'pointer',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 12, lineHeight: 1, padding: 0,
+                              fontSize: isMobile ? 16 : 12, lineHeight: 1, padding: 0,
                             }}
                           >
                             ×
@@ -1651,13 +1781,17 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
             {/* Footer */}
             <div
               style={{
-                display: 'flex', justifyContent: 'space-between', gap: 10,
-                padding: '0 24px', height: 68, flexShrink: 0,
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center',
+                gap: isMobile ? 8 : 10,
+                padding: isMobile ? '10px 16px calc(10px + env(safe-area-inset-bottom))' : '0 24px',
+                height: isMobile ? 'auto' : 68, flexShrink: 0,
                 borderTop: '1px solid rgba(255,255,255,0.07)',
-                alignItems: 'center',
+                boxSizing: 'border-box',
               }}
             >
-              <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+              <div style={{ flex: 1, minWidth: 0, paddingRight: isMobile ? 0 : 12 }}>
                 {error && (
                   <div role="alert" style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#fca5a5', fontSize: 13, display: 'inline-block', maxWidth: '100%' }}>
                     {error}
@@ -1682,14 +1816,14 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10, width: isMobile ? '100%' : undefined }}>
               {success ? (
                 <button
                   onClick={close}
                   style={{
-                    padding: '0 28px', height: 40, borderRadius: 8,
+                    padding: isMobile ? '0 20px' : '0 28px', height: isMobile ? 44 : 40, borderRadius: 8,
                     background: 'linear-gradient(135deg, #4540E8, #7c3aed)',
-                    border: 'none', color: 'white',
+                    border: 'none', color: 'white', flex: isMobile ? 1 : undefined,
                     fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >
@@ -1700,10 +1834,11 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                   <button
                     onClick={close}
                     style={{
-                      padding: '0 24px', height: 40, borderRadius: 8,
+                      padding: isMobile ? '0 10px' : '0 24px', height: isMobile ? 44 : 40, borderRadius: 8,
                       border: '1px solid rgba(255,255,255,0.15)',
                       background: 'transparent', color: 'rgba(255,255,255,0.7)',
                       fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
+                      flex: isMobile ? 1 : undefined, whiteSpace: 'nowrap',
                     }}
                   >
                     Cancel
@@ -1713,13 +1848,14 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     onClick={() => void saveDraftNow()}
                     disabled={!form.title.trim() && !form.description.trim() && !form.type && form.tags.length === 0}
                     style={{
-                      padding: '0 18px', height: 40, borderRadius: 8,
+                      padding: isMobile ? '0 10px' : '0 18px', height: isMobile ? 44 : 40, borderRadius: 8,
                       border: '1px solid rgba(255,255,255,0.18)',
                       background: 'rgba(255,255,255,0.04)',
                       color: 'rgba(255,255,255,0.78)',
-                      fontSize: 13, fontWeight: 500,
+                      fontSize: isMobile ? 14 : 13, fontWeight: 500,
                       cursor: (!form.title.trim() && !form.description.trim() && !form.type && form.tags.length === 0) ? 'not-allowed' : 'pointer',
                       fontFamily: 'inherit', opacity: (!form.title.trim() && !form.description.trim() && !form.type && form.tags.length === 0) ? 0.45 : 1,
+                      flex: isMobile ? 1 : undefined, whiteSpace: 'nowrap',
                     }}
                   >
                     Save Draft
@@ -1728,14 +1864,15 @@ export const FeedbackWidget = forwardRef<FeedbackWidgetHandle, Props>(function F
                     onClick={handleSubmit}
                     disabled={!canSubmit}
                     style={{
-                      padding: '0 28px', height: 40, borderRadius: 8,
+                      padding: isMobile ? '0 12px' : '0 28px', height: isMobile ? 44 : 40, borderRadius: 8,
                       background: canSubmit ? 'linear-gradient(135deg, #4540E8, #7c3aed)' : 'rgba(255,255,255,0.08)',
                       border: 'none', color: canSubmit ? 'white' : 'rgba(255,255,255,0.3)',
                       fontSize: 14, fontWeight: 500, cursor: canSubmit ? 'pointer' : 'not-allowed',
                       transition: 'opacity 0.15s', fontFamily: 'inherit',
+                      flex: isMobile ? 1 : undefined, whiteSpace: 'nowrap',
                     }}
                   >
-                    {submitting ? 'Submitting…' : 'Submit Feedback'}
+                    {submitting ? 'Submitting…' : isMobile ? 'Submit' : 'Submit Feedback'}
                   </button>
                 </>
               )}

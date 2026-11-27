@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-27
+
+### Changed
+- **Responsive, touch-friendly feedback modal.** Phones get a full-screen sheet and narrow windows stack the annotation pane above the form. Adds safe-area insets, 44px touch targets, 16px inputs to prevent iOS focus zoom, larger annotation controls, background scroll locking, and Inter throughout via a single font load with a system-font fallback.
+
 ## [0.4.0] - 2026-11-13
 
 ### Added
