@@ -36,6 +36,8 @@ export interface AnnotationCanvasHandle {
 
 interface Props {
   screenshot: string | null
+  /** Larger hit targets for touch devices. */
+  compact?: boolean
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -354,7 +356,7 @@ function makeArrow(x1: number, y1: number, x2: number, y2: number, stroke: strin
 // ── component ─────────────────────────────────────────────────────────────────
 
 export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
-  ({ screenshot }, ref) => {
+  ({ screenshot, compact = false }, ref) => {
     const containerRef    = useRef<HTMLDivElement>(null)
     const canvasElRef     = useRef<HTMLCanvasElement>(null)
     const fabricRef       = useRef<fabric.Canvas | null>(null)
@@ -935,7 +937,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
     // ── styles ────────────────────────────────────────────────────────────────
 
     const btn = (active = false): React.CSSProperties => ({
-      width: 32, height: 32,
+      width: compact ? 40 : 32, height: compact ? 40 : 32,
       border: `1px solid ${active ? '#4540E8' : 'rgba(255,255,255,0.12)'}`,
       borderRadius: 6,
       background: active ? 'rgba(69,64,232,0.2)' : 'rgba(255,255,255,0.04)',
@@ -1000,7 +1002,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
               <label title="Drawing color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
                 <span>Color</span>
                 <input type="color" value={color} onChange={e => { setColor(e.target.value); colorRef.current = e.target.value }}
-                  style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                  style={{ width: compact ? 32 : 22, height: compact ? 32 : 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
               </label>
             </>
           )}
@@ -1017,7 +1019,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                   {selectedFill !== null
                     ? <>
                         <input type="color" value={selectedFill} onChange={e => { setSelectedFill(e.target.value); applyFill(e.target.value) }}
-                          style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                          style={{ width: compact ? 32 : 22, height: compact ? 32 : 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
                         <button title="Remove fill" onClick={() => { setSelectedFill(null); applyFill(null) }} style={{ ...btn(), fontSize: 11, padding: '0 5px', lineHeight: 1 }}>×</button>
                       </>
                     : <button title="Add fill" onClick={() => { setSelectedFill(colorRef.current); applyFill(colorRef.current) }} style={{ ...btn(), fontSize: 11, padding: '0 5px', lineHeight: 1 }}>+</button>
@@ -1030,7 +1032,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 <label title="Text color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
                   <span>Color</span>
                   <input type="color" value={selectedFill ?? '#ffffff'} onChange={e => { setSelectedFill(e.target.value); applyFill(e.target.value) }}
-                    style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                    style={{ width: compact ? 32 : 22, height: compact ? 32 : 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
                 </label>
               )}
 
@@ -1043,7 +1045,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                   style={{
                     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 6, color: 'white', fontSize: 12, padding: '2px 4px', cursor: 'pointer',
-                    height: 26,
+                    height: compact ? 34 : 26,
                   }}
                 >
                   {FONT_SIZES.map(s => (
@@ -1057,7 +1059,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 <label title="Stroke color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
                   <span>Stroke</span>
                   <input type="color" value={selectedStroke ?? '#ef4444'} onChange={e => { setSelectedStroke(e.target.value); applyStroke(e.target.value) }}
-                    style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                    style={{ width: compact ? 32 : 22, height: compact ? 32 : 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
                 </label>
               )}
             </>
@@ -1103,7 +1105,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                   style={{
                     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 6, color: 'white', fontSize: 12, padding: '2px 4px', cursor: 'pointer',
-                    height: 26,
+                    height: compact ? 34 : 26,
                   }}
                 >
                   {FONT_SIZES.map(s => (
@@ -1119,7 +1121,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 <input type="color" value={noteBgColor} onChange={e => {
                   setNoteBgColor(e.target.value)
                   applyNoteStyle({ noteBgColor: e.target.value })
-                }} style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                }} style={{ width: compact ? 32 : 22, height: compact ? 32 : 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
               </label>
 
               <label title="Note text color" style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
@@ -1127,7 +1129,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, Props>(
                 <input type="color" value={noteTextColor} onChange={e => {
                   setNoteTextColor(e.target.value)
                   applyNoteStyle({ noteTextColor: e.target.value })
-                }} style={{ width: 22, height: 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
+                }} style={{ width: compact ? 32 : 22, height: compact ? 32 : 22, padding: 1, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, background: 'transparent', cursor: 'pointer' }} />
               </label>
             </>
           )}
